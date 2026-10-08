@@ -1,0 +1,6 @@
+{
+  "name": "earth35-web", "version": "1.0.0", "private": true,
+  "scripts": {"dev":"next dev", "build":"next build", "start":"next start -H 0.0.0.0", "typecheck":"tsc --noEmit", "generate:api":"openapi-typescript http://localhost:8080/v3/api-docs -o lib/protocol.generated.ts", "test:e2e":"playwright test"},
+  "dependencies": {"next":"^16.0.0", "react":"~19.2.0", "react-dom":"~19.2.0", "three":"^0.180.0", "@react-three/fiber":"^9.3.0", "@react-three/drei":"^10.7.0", "lucide-react":"^0.468.0"},
+  "devDependencies": {"typescript":"^5.9.0", "@types/react":"^19.2.0", "@types/react-dom":"^19.2.0", "@types/three":"^0.180.0", "@types/node":"^22.0.0", "@playwright/test":"^1.56.0", "openapi-typescript":"^7.10.0", "tailwindcss":"^4.1.0", "@tailwindcss/postcss":"^4.1.0"}
+}

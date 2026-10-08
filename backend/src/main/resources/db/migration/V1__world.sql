@@ -1,0 +1,14 @@
+CREATE EXTENSION IF NOT EXISTS vector;
+CREATE TABLE world_state (id integer PRIMARY KEY CHECK (id=1), data jsonb NOT NULL);
+CREATE TABLE owners (id text PRIMARY KEY, email text NOT NULL UNIQUE, password_hash text NOT NULL, created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE sessions (token_hash text PRIMARY KEY, owner_id text NOT NULL REFERENCES owners(id), expires_at timestamptz NOT NULL);
+CREATE TABLE agent_credentials (agent_id text PRIMARY KEY, token_hash text UNIQUE, owner_id text NOT NULL REFERENCES owners(id));
+CREATE TABLE agent_actions (id text PRIMARY KEY, agent_id text NOT NULL, request_id text NOT NULL, command jsonb NOT NULL, status text NOT NULL, result text NOT NULL, world_minute bigint NOT NULL, UNIQUE(agent_id,request_id));
+CREATE INDEX agent_actions_history ON agent_actions(agent_id, world_minute DESC);
+CREATE TABLE world_events (id bigserial PRIMARY KEY, world_minute bigint NOT NULL, kind text NOT NULL, actor_id text NOT NULL, target_id text NOT NULL DEFAULT '', message text NOT NULL, published boolean NOT NULL DEFAULT false);
+CREATE INDEX world_events_outbox ON world_events(id) WHERE NOT published;
+CREATE TABLE transactions (id bigserial PRIMARY KEY, world_minute bigint NOT NULL, source text NOT NULL, destination text NOT NULL, amount bigint NOT NULL CHECK(amount > 0), reason text NOT NULL);
+CREATE TABLE agent_memories (id text PRIMARY KEY, agent_id text NOT NULL, request_id text NOT NULL, kind text NOT NULL CHECK(kind IN ('episodic','semantic')), content text NOT NULL, entities jsonb NOT NULL, source_events jsonb NOT NULL, world_minute bigint NOT NULL, embedding vector(384), embedding_model text, UNIQUE(agent_id,request_id));
+CREATE INDEX agent_memories_owner ON agent_memories(agent_id,world_minute DESC);
+CREATE INDEX agent_memories_text ON agent_memories USING gin(to_tsvector('english',content));
+CREATE TABLE runtime_usage (agent_id text NOT NULL, request_id text NOT NULL, tokens bigint NOT NULL CHECK(tokens >= 0), PRIMARY KEY(agent_id,request_id));

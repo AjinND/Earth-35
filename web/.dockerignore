@@ -1,0 +1,12 @@
+node_modules
+.next
+.next-island-*
+.next-organic-*
+.next-planet-*
+.next-landscapes-*
+innovations-preview
+.next-transit-*
+.next-observed-*
+test-results
+test-results-*
+playwright-report

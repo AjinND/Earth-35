@@ -1,0 +1,36 @@
+spring:
+  task:
+    scheduling:
+      pool:
+        size: 3 # Embedding recovery must not block the authoritative clock or event outbox.
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5435/earth35}
+    username: earth35
+    password: ${DB_PASSWORD:local-earth35-only}
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+server:
+  error:
+    include-message: never
+  tomcat:
+    max-http-form-post-size: 32KB
+earth35:
+  memory:
+    embedding-url: ${EMBEDDING_URL:http://localhost:8090/embed}
+  web-origin: ${WEB_ORIGIN:http://localhost:3000}
+  tick-ms: ${TICK_MS:5000}
+  hosted:
+    encryption-key: ${HOSTED_ENCRYPTION_KEY:}
+    nvidia-url: ${NVIDIA_API_URL:https://integrate.api.nvidia.com/v1/chat/completions}
+    openrouter-url: ${OPENROUTER_API_URL:https://openrouter.ai/api/v1/chat/completions}
+    openai-url: ${OPENAI_API_URL:https://api.openai.com/v1/chat/completions}
+    anthropic-url: ${ANTHROPIC_API_URL:https://api.anthropic.com/v1/messages}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+springdoc:
+  swagger-ui:
+    path: /docs

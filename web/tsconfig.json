@@ -1,0 +1,53 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": [
+        "./*"
+      ]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts",
+    ".next-island-preview/types/**/*.ts",
+    ".next-island-preview/dev/types/**/*.ts",
+    ".next-organic-preview/types/**/*.ts",
+    ".next-organic-preview/dev/types/**/*.ts",
+    ".next-organic-growth/types/**/*.ts",
+    ".next-organic-growth/dev/types/**/*.ts",
+    ".next-planet-preview/types/**/*.ts",
+    ".next-planet-preview/dev/types/**/*.ts",
+    ".next-transit-repair/types/**/*.ts",
+    ".next-transit-repair/dev/types/**/*.ts",
+    ".next-landscapes-preview/types/**/*.ts",
+    ".next-landscapes-preview/dev/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}

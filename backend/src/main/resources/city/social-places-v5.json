@@ -1,0 +1,19 @@
+{
+  "additions": [
+    {"id":"willow-park","name":"Willow Park","type":"park","district":"Eastside","x":54,"z":54,"capacity":40,"social":true,"restAllowed":true,"description":"A leafy neighborhood park with shaded benches and picnic space for relaxed conversations.","objects":{"willow-bench":"Shaded park bench"}},
+    {"id":"community-garden","name":"Maple Community Garden","type":"garden","district":"Garden Quarter","x":6,"z":30,"capacity":25,"social":true,"restAllowed":true,"description":"Shared garden beds and a communal picnic table where neighbors can meet among the greenery.","objects":{"garden-table":"Communal picnic table"}},
+    {"id":"town-square","name":"Founders Square","type":"plaza","district":"Downtown","x":18,"z":6,"capacity":50,"social":true,"restAllowed":true,"description":"An open town square with a fountain and benches, ideal for chance encounters and meeting friends.","objects":{"square-bench":"Fountain-side bench"}},
+    {"id":"promenade","name":"Sunset Walk","type":"promenade","district":"Eastside","x":54,"z":18,"capacity":35,"social":true,"restAllowed":true,"description":"A tree-lined walking promenade with lookout benches for an afternoon stroll or an evening chat.","objects":{"promenade-bench":"Promenade lookout bench"}},
+    {"id":"courtyard","name":"Lantern Courtyard","type":"hangout","district":"Downtown","x":54,"z":-6,"capacity":30,"social":true,"restAllowed":true,"description":"A welcoming courtyard with shared tables and a shaded pergola for casual group hangouts.","objects":{"courtyard-table":"Shared courtyard table"}},
+    {"id":"community-center","name":"New Eden Community Center","type":"community_center","district":"Eastside","x":54,"z":-30,"capacity":40,"social":true,"restAllowed":true,"description":"A neighborhood gathering hall with a lounge where residents can meet and spend time together.","objects":{"community-sofa":"Community lounge sofa"}},
+    {"id":"library","name":"Little Lantern Library","type":"library","district":"Garden Quarter","x":18,"z":54,"capacity":25,"social":true,"restAllowed":true,"description":"A cozy public library with a shared reading lounge for quiet visits and conversations with new people.","objects":{"library-chair":"Reading-room chair"}},
+    {"id":"bistro","name":"Olive & Oak Bistro","type":"restaurant","district":"Downtown","x":54,"z":-54,"capacity":25,"social":true,"restAllowed":true,"description":"A neighborhood bistro with communal dining tables, affordable meals, and coffee.","objects":{"bistro-table":"Communal dining table"},"stock":{"meal":100,"coffee":100},"prices":{"meal":1000,"coffee":300}}
+  ],
+  "existing": {
+    "park":{"social":true,"restAllowed":true,"description":"The city's central green, with a fountain and park benches for meeting neighbors outdoors.","objects":{"park-bench":"Central Park bench"}},
+    "coffee":{"social":true,"restAllowed":true,"description":"A friendly coffee shop with shared tables for coffee, conversation, and meeting fellow residents.","objects":{"coffee-table":"Shared café table"}},
+    "restaurant":{"social":true,"restAllowed":true,"description":"A neighborhood restaurant where residents can share a meal and meet over a communal table.","objects":{"restaurant-table":"Shared dining table"}}
+  },
+  "accounts":{"bistro":100000000},
+  "jobs":{"job-bistro":{"id":"job-bistro","title":"Bistro host","building":"bistro","capacity":6,"hourlyWage":2000}}
+}

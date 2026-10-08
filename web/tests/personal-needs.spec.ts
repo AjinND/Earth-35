@@ -1,0 +1,32 @@
+import {test,expect,type WebSocketRoute} from "@playwright/test";
+import type {World} from "../lib/types";
+
+test("front entrances and opening hours are discoverable and worn coats update live avatars",async({page,request},info)=>{
+  test.setTimeout(90000);
+  const errors:string[]=[];page.on("pageerror",e=>errors.push(e.message));
+  let world:World={...await (await request.get("/api/v1/world")).json(),minute:1200,weather:"Rain",tickMs:5000};
+  world.buildings=world.buildings.map(b=>b.id==="coffee"?{...b,hours:{openMinute:360,closeMinute:1200,openDays:[0,1,2,3,4,5,6],openNow:false,nextOpenMinute:1800}}:b);
+  world.agents=[{id:"coat-test",name:"Raincoat wearer",description:"Ready for the weather",home:"apt-101",occupation:"Explorer",location:"park",x:30,z:30,activity:"Idle",status:"active",fixture:true,raincoatWorn:true}];
+  let socket:WebSocketRoute|undefined;
+  await page.route("**/api/v1/world",r=>r.fulfill({json:world}));
+  await page.route("**/api/config",r=>r.fulfill({json:{webSocketUrl:"ws://localhost:3001/ws/needs-test"}}));
+  await page.routeWebSocket("**/ws/needs-test",r=>{socket=r;r.send(JSON.stringify(world));});
+  await page.goto("/");await expect(page.locator(".world-stage canvas")).toBeVisible({timeout:15000});
+  await page.getByRole("button",{name:"Browse places"}).click();
+  const coffee=page.locator(".places-popover").getByRole("button",{name:"Common Ground",exact:true});
+  await expect(coffee).toContainText("Closed · 06:00–20:00");await coffee.click();
+  await expect(page.locator(".inspect-panel .venue-hours")).toHaveText("Closed now · 06:00–20:00");
+  await expect(page.locator(".inspect-panel")).toContainText("Entrance on the front side");
+  await page.getByRole("button",{name:"Close inspector"}).click();
+  await page.getByRole("button",{name:"Zoom in",exact:true}).click();
+  await page.getByRole("button",{name:"Zoom in",exact:true}).click();
+  await page.screenshot({path:info.outputPath("front-doors.png")});
+  await page.goto("/agents");await page.locator(".resident-card").click();
+  await expect(page.locator(".avatar-preview-stage")).toHaveAttribute("data-raincoat-worn","true");
+  await page.getByLabel("Avatar animation preview").selectOption("Idle");
+  await page.locator(".inspect-panel").screenshot({path:info.outputPath("worn-raincoat.png")});
+  await expect.poll(()=>!!socket).toBe(true);
+  world={...world,weather:"Clear",version:world.version+1,agents:[{...world.agents[0],raincoatWorn:false}]};socket!.send(JSON.stringify(world));
+  await expect(page.locator(".avatar-preview-stage")).toHaveAttribute("data-raincoat-worn","false");
+  expect(errors).toEqual([]);
+});

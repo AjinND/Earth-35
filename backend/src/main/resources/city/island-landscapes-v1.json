@@ -1,0 +1,426 @@
+{
+  "version": 2,
+  "lake": {
+    "id": "cloudmere",
+    "name": "Cloudmere Lake",
+    "x": -132,
+    "z": -398,
+    "radiusX": 26,
+    "radiusZ": 18,
+    "level": 72
+  },
+  "lakeRiverStart": 20,
+  "lakeRiverEnd": 28,
+  "cliffRiverEnd": 32,
+  "trail": [
+    [
+      -225,
+      -450
+    ],
+    [
+      -195,
+      -432
+    ],
+    [
+      -179,
+      -415
+    ],
+    [
+      -172,
+      -399
+    ],
+    [
+      -170,
+      -383
+    ],
+    [
+      -151,
+      -364
+    ],
+    [
+      -129,
+      -348
+    ],
+    [
+      -116,
+      -330
+    ],
+    [
+      -107,
+      -322
+    ]
+  ],
+  "fallsTrail": [
+    [
+      -107,
+      -322
+    ],
+    [
+      -94,
+      -322
+    ],
+    [
+      -81,
+      -322
+    ],
+    [
+      -69,
+      -330
+    ],
+    [
+      -65,
+      -350
+    ]
+  ],
+  "coastalZones": [
+    {
+      "id": "moonwash-cove",
+      "name": "Moonwash Cove",
+      "kind": "cove",
+      "x": -717,
+      "z": -123,
+      "radiusX": 31,
+      "radiusZ": 67
+    },
+    {
+      "id": "basalt-headland",
+      "name": "Basalt Headland",
+      "kind": "cliff",
+      "x": -715,
+      "z": 27,
+      "radiusX": 55,
+      "radiusZ": 73
+    },
+    {
+      "id": "silverstream-estuary",
+      "name": "Silverstream Estuary",
+      "kind": "cove",
+      "x": 205,
+      "z": 148,
+      "radiusX": 32,
+      "radiusZ": 41
+    },
+    {
+      "id": "north-rocky-shore",
+      "name": "Northern Rocky Shore",
+      "kind": "rocky",
+      "x": -375,
+      "z": -658,
+      "radiusX": 80,
+      "radiusZ": 30
+    }
+  ],
+  "terrainRelief": [
+    {
+      "id": "basalt-headland",
+      "x": -709,
+      "z": 20,
+      "radiusX": 47,
+      "radiusZ": 66,
+      "height": 22
+    },
+    {
+      "id": "western-ridge",
+      "x": -650,
+      "z": -260,
+      "radiusX": 85,
+      "radiusZ": 150,
+      "height": 18
+    },
+    {
+      "id": "fern-valley",
+      "x": -550,
+      "z": -250,
+      "radiusX": 74,
+      "radiusZ": 105,
+      "height": -13
+    }
+  ],
+  "protectedCliffs": [
+    {
+      "id": "basalt-edge",
+      "x": -729,
+      "z": 38,
+      "radiusX": 17,
+      "radiusZ": 38
+    }
+  ],
+  "trails": [
+    {
+      "id": "western-ridge",
+      "name": "Western Ridge Trail",
+      "surface": "rock",
+      "points": [
+        [
+          -225,
+          -450
+        ],
+        [
+          -300,
+          -455
+        ],
+        [
+          -365,
+          -420
+        ],
+        [
+          -395,
+          -370
+        ],
+        [
+          -365,
+          -330
+        ],
+        [
+          -425,
+          -310
+        ],
+        [
+          -480,
+          -275
+        ],
+        [
+          -550,
+          -245
+        ],
+        [
+          -565,
+          -190
+        ],
+        [
+          -595,
+          -100
+        ]
+      ]
+    },
+    {
+      "id": "cove-approach",
+      "name": "Moonwash Forest Path",
+      "surface": "earth",
+      "points": [
+        [
+          -595,
+          -100
+        ],
+        [
+          -625,
+          -125
+        ],
+        [
+          -650,
+          -150
+        ],
+        [
+          -692,
+          -150
+        ],
+        [
+          -705,
+          -120
+        ]
+      ]
+    },
+    {
+      "id": "headland",
+      "name": "Basalt Headland Trail",
+      "surface": "gravel",
+      "points": [
+        [
+          -625,
+          -125
+        ],
+        [
+          -665,
+          -75
+        ],
+        [
+          -660,
+          -25
+        ],
+        [
+          -650,
+          0
+        ],
+        [
+        -710,
+          10
+        ]
+      ]
+    },
+    {
+      "id": "eastern-valley",
+      "name": "Silverstream Valley Trail",
+      "surface": "earth",
+      "points": [
+        [
+          -65,
+          -350
+        ],
+        [
+          0,
+          -366
+        ],
+        [
+          75,
+          -355
+        ],
+        [
+          126,
+          -310
+        ],
+        [
+          160,
+          -255
+        ],
+        [
+          163,
+          -205
+        ],
+        [
+          163,
+          -170
+        ],
+        [
+          120,
+          -170
+        ],
+        [
+          105,
+          -155
+        ],
+        [
+          70,
+          -170
+        ]
+      ]
+    },
+    {
+      "id": "estuary",
+      "name": "Silverstream Eastern Bank Trail",
+      "surface": "gravel",
+      "points": [
+        [
+          163,
+          -170
+        ],
+        [
+          180,
+          -110
+        ],
+        [
+          205,
+          -50
+        ],
+        [
+          210,
+          20
+        ],
+      [
+        205,
+        70
+      ]
+      ]
+    },
+    {
+      "id": "estuary-approach",
+      "name": "Silverstream Estuary Trail",
+      "surface": "gravel",
+      "points": [[158,70],[165,95],[170,115],[178,140],[204,134]]
+    },
+    {
+      "id": "southern-footbridge",
+      "name": "South Footbridge Link",
+      "surface": "earth",
+      "points": [
+        [
+          205,
+          70
+        ],
+        [
+          180,
+          70
+        ],
+        [
+          158,
+          70
+        ]
+      ]
+    }
+  ],
+  "bridges": [
+    {
+      "id": "north-footbridge",
+      "name": "Highland Footbridge",
+      "x": -92.3657183655536,
+      "z": -322,
+      "length": 12,
+      "width": 3.6
+    },
+    {
+      "id": "valley-footbridge",
+      "name": "Valley Footbridge",
+      "x": 126.65109217587798,
+      "z": -170,
+      "length": 12.7,
+      "width": 3.6
+    },
+    {
+      "id": "south-footbridge",
+      "name": "South Footbridge",
+      "x": 164.9190521067097,
+      "z": 70,
+      "length": 13.6,
+      "width": 3.6
+    }
+  ],
+  "viewpoints": [
+    {
+      "id": "cloudmere-view",
+      "name": "Cloudmere Lakeside",
+      "district": "Highlands",
+      "x": -172,
+      "z": -399,
+      "description": "A dry western shore above Silverstream. The lake drains through a rocky waterfall into the valley; the marked trail leads to the northern ridge and river footbridge."
+    },
+    {
+      "id": "silverstream-falls",
+      "name": "Silverstream Falls Lookout",
+      "district": "Highlands",
+      "x": -65,
+      "z": -350,
+      "description": "A safe eastern valley viewpoint overlooking Silverstream's waterfall. Its trail crosses the northern footbridge to join the lakeside trail. Water and steep cliff edges are inaccessible; follow the trails around them."
+    },
+    {
+      "id": "moonwash-cove",
+      "name": "Moonwash Cove",
+      "district": "Western Coast",
+      "x": -705,
+      "z": -120,
+      "description": "A sandy sheltered cove below the western forest. The forest path connects the beach to Fern Valley, the ridge and the headland trail."
+    },
+    {
+      "id": "basalt-lookout",
+      "name": "Basalt Headland Lookout",
+      "district": "Western Coast",
+      "x": -710,
+      "z": 10,
+      "description": "A dry inland ledge above the rocky headland and cove. Stay on the marked approach; the exposed coastal cliff edge is inaccessible."
+    },
+    {
+      "id": "fern-valley",
+      "name": "Fern Valley Rest",
+      "district": "Western Woods",
+      "x": -550,
+      "z": -245,
+      "description": "An open resting spot in the forested valley between the western ridge and foothills. Follow the continuous ridge trail to Cloudmere or the western coast."
+    },
+    {
+      "id": "silverstream-estuary",
+      "name": "Silverstream Estuary",
+      "district": "Eastern Coast",
+      "x": 204,
+      "z": 134,
+      "description": "A dry sandy shore beside Silverstream's sea outlet. The eastern bank trail connects to the valley and southern footbridges; river water is inaccessible."
+    }
+  ]
+}

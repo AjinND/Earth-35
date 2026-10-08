@@ -1,0 +1,48 @@
+import {test,expect,type WebSocketRoute} from "@playwright/test";
+import fs from "node:fs";
+import path from "node:path";
+import {busPlatformPlacements} from "../lib/street-furniture";
+import {organicCityLayout} from "../lib/city-layout";
+import type {World,Agent} from "../lib/types";
+
+test("a waiting resident visibly walks to the bus before disappearing inside it",async({page},info)=>{
+  test.setTimeout(90000);
+  const errors:string[]=[];page.on("pageerror",e=>errors.push(e.message));
+  let world:World=JSON.parse(fs.readFileSync(path.resolve("tests/fixtures/city-growth-world.json"),"utf8").replace(/^\uFEFF/,""));
+  const stop=world.transport!.stops.find(s=>s.id==="stop-residential")!;
+  const building=world.buildings.find(b=>b.id===stop.id)!;
+  const bus=world.transport!.vehicles.find(v=>v.type==="bus"&&v.stop===stop.id)!;
+  const platform=busPlatformPlacements(building,stop,organicCityLayout).find(p=>p.route===bus.route)!;
+  const start={x:platform.x-Math.sin(platform.heading)*1.6,z:platform.z-Math.cos(platform.heading)*1.6};
+  const door={x:bus.x+Math.cos(bus.heading)*.82+Math.sin(bus.heading)*1.35,z:bus.z-Math.sin(bus.heading)*.82+Math.cos(bus.heading)*1.35};
+  const agent:Agent={id:"boarding-visual",name:"Boarding Walker",description:"Transit regression",home:"apt-101",occupation:"Explorer",location:stop.id,...start,activity:"WAIT_BUS",status:"active",fixture:true,vehicleId:bus.id};
+  world={...world,tickMs:1500,agents:[agent],transport:{...world.transport!,vehicles:[bus]}};
+  let socket:WebSocketRoute|undefined;
+  await page.route("**/api/v1/world",r=>r.fulfill({json:world}));
+  await page.route("**/api/config",r=>r.fulfill({json:{webSocketUrl:"ws://localhost/ws/boarding-test"}}));
+  await page.routeWebSocket("**/ws/boarding-test",r=>{socket=r;r.send(JSON.stringify(world));});
+  await page.goto("/");
+  await expect(page.locator(".world-stage canvas")).toBeVisible({timeout:30000});
+  await page.getByRole("button",{name:"Browse places",exact:true}).click();
+  await page.getByRole("button",{name:"All places",exact:true}).click();
+  await page.getByRole("button",{name:stop.name,exact:true}).click();
+  await page.locator(".inspect-panel").getByRole("button",{name:agent.name,exact:true}).click();
+  const label=page.locator(".world-stage [data-avatar-motion]");
+  await expect(label).toHaveText(agent.name);await expect.poll(()=>!!socket).toBe(true);
+  const walk=Array.from({length:13},(_,i)=>({x:start.x+(door.x-start.x)*i/12,z:start.z+(door.z-start.z)*i/12,heading:bus.heading}));
+  world={...world,minute:world.minute+1,version:world.version+1,agents:[{...agent,...door,activity:"BOARD_BUS",motion:walk}]};
+  socket!.send(JSON.stringify(world));
+  await expect(label).toHaveAttribute("data-avatar-motion","Walk",{timeout:15000});
+  await page.locator(".world-stage").screenshot({path:info.outputPath("walking-to-bus.png")});
+  await expect(label).toHaveText(agent.name);
+  // Finish the first interval before sending the step through the doorway.
+  await page.waitForTimeout(1600);
+  const inside={x:bus.x+Math.sin(bus.heading)*1.35,z:bus.z+Math.cos(bus.heading)*1.35};
+  world={...world,minute:world.minute+1,version:world.version+1,agents:[{...agent,...inside,location:`bus:${bus.id}`,activity:"RIDE_BUS",motion:[{...door,heading:bus.heading},{...inside,heading:bus.heading}]}]};
+  socket!.send(JSON.stringify(world));
+  await expect(label).toHaveText(agent.name);
+  await expect(label).toHaveAttribute("data-avatar-motion","Walk");
+  await expect(label).toHaveCount(0,{timeout:5000});
+  await page.locator(".world-stage").screenshot({path:info.outputPath("boarded-bus.png")});
+  expect(errors).toEqual([]);
+});

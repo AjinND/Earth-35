@@ -1,0 +1,44 @@
+name: earth35
+services:
+  embeddings:
+    build: ./embeddings
+  db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_DB: earth35
+      POSTGRES_USER: earth35
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-local-earth35-only}
+    ports: ["127.0.0.1:5435:5432"]
+    volumes: ["world-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U earth35"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  api:
+    build: ./backend
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/earth35
+      DB_PASSWORD: ${DB_PASSWORD:-local-earth35-only}
+      WEB_ORIGIN: http://localhost:3000
+      TICK_MS: ${TICK_MS:-5000}
+      HOSTED_ENCRYPTION_KEY: ${HOSTED_ENCRYPTION_KEY:-}
+      EMBEDDING_URL: http://embeddings:8090/embed
+    ports: ["127.0.0.1:8080:8080"]
+    depends_on:
+      db: {condition: service_healthy}
+      embeddings: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/actuator/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+  web:
+    build: ./web
+    environment:
+      API_URL: http://api:8080
+    ports: ["127.0.0.1:3000:3000"]
+    depends_on:
+      api: {condition: service_healthy}
+volumes:
+  world-data:
