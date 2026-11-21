@@ -26,6 +26,14 @@ public class WorldStore {
     }
     public void save(State s) { s.version++;db.update("UPDATE world_state SET data=?::jsonb WHERE id=1",encode(s)); }
     public void effects(State s,Engine.Effects e) {
+        for(var started:e.starts) {
+            State.Resident resident=s.agents.get(started.resident());
+            String status=resident.pending!=null&&started.id().equals(resident.pending.id)?"accepted":"completed";
+            Cognition.action(resident,s.minute,started.id(),started.command().action().name(),started.command().target(),status,started.result());
+            db.update("INSERT INTO agent_actions(id,agent_id,request_id,command,status,result,world_minute) VALUES(?,?,?,?::jsonb,?,?,?) ON CONFLICT DO NOTHING",
+                started.id(),started.resident(),started.command().requestId(),encode(started.command()),status,started.result(),s.minute);
+        }
+        Cognition.complete(s,e);
         for(var f:e.facts) {
             State.Conversation chat=s.conversations.get(Conversations.key(f.actor(),f.target()));
             if(f.kind().equals("conversation")&&chat!=null&&chat.closed&&chat.closingSpeaker!=null) {
@@ -50,14 +58,14 @@ public class WorldStore {
         State s=read(false);
         long cursor=Optional.ofNullable(db.queryForObject("SELECT max(id) FROM world_events",Long.class)).orElse(0L);
         return new World(s.minute,s.version,Engine.weather(s.minute),Engine.temperature(s.minute),tickMs,
-            s.buildings.values().stream().map(b->new StateBuilding(b.id,b.name,b.type,b.district,b.x,b.z,b.capacity,b.description,b.social,b.restAllowed,b.objects,Places.entrance(b),Places.hours(b,s.minute),b.outdoorRadius,b.plannedType)).toList(),
+            s.buildings.values().stream().map(b->new StateBuilding(b.id,b.name,b.type,b.district,b.x,b.z,b.capacity,b.description,b.social,b.restAllowed,b.objects,Places.entrance(b),Places.hours(b,s.minute),b.outdoorRadius,b.plannedType,Workspaces.stations(b))).toList(),
             s.agents.values().stream().map(WorldStore::publicAgent).toList(),events(Math.max(0,cursor-50),50,""),Traffic.network(s),Economy.summary(s),CityLayout.of(s),Projects.publicView(s),Construction.view(s),WorldObjects.view(s));
     }
     public static PublicAgent publicAgent(State.Resident a) {
         String status=a.paused?"paused":System.currentTimeMillis()-a.lastSeen<45000?"online":"offline";
         boolean transit=a.pending!=null&&List.of("WAIT_BUS","BOARD_BUS","RIDE_BUS").contains(a.pending.type);
         return new PublicAgent(a.id,a.name,a.description,a.home,a.occupation,a.location,a.x,a.z,Engine.activity(a),status,a.fixture,a.raincoatWorn,Seating.seatIndex(a),
-            transit?a.pending.vehicleId:null,transit?List.copyOf(a.pending.motion):List.of(),a.facingHeading,a.facingUntil);
+            transit?a.pending.vehicleId:null,transit?List.copyOf(a.pending.motion):a.activityMotion==null?List.of():List.copyOf(a.activityMotion),a.facingHeading,a.facingUntil,ActivityExecution.view(a),ActionPerformance.view(a));
     }
 }
 

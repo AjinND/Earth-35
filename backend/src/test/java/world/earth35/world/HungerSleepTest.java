@@ -43,14 +43,20 @@ class HungerSleepTest {
         while(s.minute<end-1) {Engine.tick(s);assertNotNull(a.pending);}
         Engine.tick(s);assertNull(a.pending);assertFalse(a.hungerWakeNeedsFood);
     }
-    @Test void aDrinkIsUsedAtHomeIfFoodIsGoneAndMissingSuppliesAreNotInvented() {
+    @Test void aResidentCanChooseAnOwnedDrinkAtHomeAndMissingSuppliesAreNotInvented() {
         State s=State.seed();Resident a=resident();a.hungerWakeNeedsFood=true;a.resumeSleepUntil=900;a.hunger=99;
         a.inventory.clear();a.inventory.put("coffee",2);
-        Command drink=NightRoutine.defaultAction(s,a,"drink");assertEquals("coffee",drink.item());
+        assertNull(NightRoutine.defaultAction(s,a,"no-automatic-drink"));
+        Command drink=new Command("drink",ActionType.EAT,null,null,"coffee",null,null);
         Engine.apply(s,a,drink,"drink",new Engine.Effects());
         assertEquals(1,a.inventory.get("coffee"));assertFalse(a.hungerWakeNeedsFood);
-        assertEquals(-1,a.lastMealMinute);assertEquals(ActionType.SLEEP,NightRoutine.defaultAction(s,a,"sleep").action());
+        assertEquals(-1,a.lastMealMinute);assertNull(NightRoutine.defaultAction(s,a,"sleep"));assertNull(a.pending);
+        Engine.apply(s,a,new Command("resume",ActionType.SLEEP,null,null,null,null,null),"resume",new Engine.Effects());
+        assertEquals("SLEEP",a.pending.type);assertEquals(900,a.pending.until);
+        a.pending=null;
         a.hungerWakeNeedsFood=true;a.inventory.clear();assertNull(NightRoutine.defaultAction(s,a,"empty"));
+        assertThrows(Engine.Invalid.class,()->Engine.apply(s,a,drink,"missing-drink",new Engine.Effects()));
+        assertTrue(a.inventory.isEmpty());assertTrue(a.hungerWakeNeedsFood);
         a.paused=true;a.inventory.put("meal",3);assertNull(NightRoutine.defaultAction(s,a,"paused"));
     }
     @Test void suppliesCoverTheDayAndAdditionalHungerWithDeficitsForBothRuntimes() {

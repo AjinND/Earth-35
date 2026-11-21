@@ -23,6 +23,11 @@ class ConstructionTest {
     }
     private long total(State s) {return s.accounts.values().stream().mapToLong(Long::longValue).sum()+s.agents.values().stream().mapToLong(a->a.money).sum();}
     private void minutes(State s,int n) {for(int i=0;i<n;i++)Engine.tick(s);}
+    private void arriveAtWorkArea(State s,String resident) {
+        State.Resident a=s.agents.get(resident);
+        for(int i=0;i<12&&a.pending!=null&&!ConstructionWork.atStation(a,a.pending);i++)Engine.tick(s);
+        assertNotNull(a.pending);assertTrue(ConstructionWork.atStation(a,a.pending));assertEquals(0,a.pending.workMinutes);
+    }
     private String clearPlot(State s) {
         for(int x=-550;x<220;x+=17)for(int z=-500;z<330;z+=17) {
             String target="point:"+x+","+z;
@@ -45,6 +50,7 @@ class ConstructionTest {
         State s=setup();State.Resident a=s.agents.get("builder");long before=a.money,total=total(s);
         act(s,a.id,ActionType.BUILD_CONSTRUCTION,"construction-201",null,null,null,"shift");
         assertEquals(3000L,s.accounts.get("escrow:construction:shift"));assertTrue(Engine.busy(a));
+        arriveAtWorkArea(s,a.id);
         minutes(s,59);assertEquals(before,a.money);assertEquals(0,s.construction.get("construction-201").completedHours);
         minutes(s,1);assertEquals(before+2000,a.money);assertNull(a.pending);assertEquals("",a.job);
         assertEquals(1,s.construction.get("construction-201").completedHours);assertEquals(0,s.construction.get("construction-201").reservedHours);
@@ -55,7 +61,7 @@ class ConstructionTest {
         act(s,"builder",ActionType.BUILD_CONSTRUCTION,site.id,null,null,null,"last");
         long funds=s.accounts.get(Construction.account(site.id));
         assertThrows(Engine.Invalid.class,()->act(s,"second",ActionType.BUILD_CONSTRUCTION,site.id,null,null,null,"racing"));
-        assertEquals(funds,s.accounts.get(Construction.account(site.id)));minutes(s,60);
+        assertEquals(funds,s.accounts.get(Construction.account(site.id)));arriveAtWorkArea(s,"builder");minutes(s,60);
         assertEquals("completed",site.status);assertEquals("house",s.buildings.get(site.id).type);assertEquals(1,s.buildings.get(site.id).capacity);
         assertTrue(Places.open(s.buildings.get(site.id),s.minute));
         assertThrows(Engine.Invalid.class,()->act(s,"builder",ActionType.BUILD_CONSTRUCTION,site.id,null,null,null,"extra"));
@@ -82,13 +88,14 @@ class ConstructionTest {
         State s=setup();State.Resident a=s.agents.get("builder");long money=a.money;
         act(s,a.id,ActionType.BUILD_CONSTRUCTION,"construction-201",null,null,null,"hour");
         Construction.tick(s,a,new Engine.Effects());assertEquals(0,a.pending.workMinutes);
-        Engine.tick(s);Construction.tick(s,a,new Engine.Effects());assertEquals(1,a.pending.workMinutes);
+        Engine.tick(s);Construction.tick(s,a,new Engine.Effects());assertEquals(0,a.pending.workMinutes);
+        arriveAtWorkArea(s,a.id);Engine.tick(s);assertEquals(1,a.pending.workMinutes);
         s.minute+=60;Construction.tick(s,a,new Engine.Effects());assertNull(a.pending);assertEquals(money,a.money);
         assertEquals(0,s.construction.get("construction-201").completedHours);
     }
     @Test void saveRestoreFinishesReservationExactlyOnce() throws Exception {
         State s=setup();long money=s.agents.get("builder").money,total=total(s);
-        act(s,"builder",ActionType.BUILD_CONSTRUCTION,"construction-201",null,null,null,"saved");minutes(s,17);
+        act(s,"builder",ActionType.BUILD_CONSTRUCTION,"construction-201",null,null,null,"saved");arriveAtWorkArea(s,"builder");minutes(s,17);
         ObjectMapper json=new ObjectMapper();State restored=json.readValue(json.writeValueAsString(s),State.class);
         minutes(restored,43);assertEquals(money+2000,restored.agents.get("builder").money);assertEquals(total,total(restored));
         minutes(restored,1);assertEquals(money+2000,restored.agents.get("builder").money);assertEquals(1,restored.construction.get("construction-201").completedHours);
@@ -97,7 +104,8 @@ class ConstructionTest {
         State s=setup();State.Resident a=s.agents.get("builder");a.x+=10;
         assertThrows(Engine.Invalid.class,()->act(s,a.id,ActionType.BUILD_CONSTRUCTION,"construction-201",null,null,null,"away"));atSite(s,a.id,"construction-201");
         s.minute=1141;assertThrows(Engine.Invalid.class,()->act(s,a.id,ActionType.BUILD_CONSTRUCTION,"construction-201",null,null,null,"late"));
-        s.minute=1140;act(s,a.id,ActionType.BUILD_CONSTRUCTION,"construction-201",null,null,null,"closing");minutes(s,60);assertNull(a.pending);
+        s.minute=1140;assertThrows(Engine.Invalid.class,()->act(s,a.id,ActionType.BUILD_CONSTRUCTION,"construction-201",null,null,null,"no-approach-time"));
+        s.minute=1137;act(s,a.id,ActionType.BUILD_CONSTRUCTION,"construction-201",null,null,null,"closing");arriveAtWorkArea(s,a.id);minutes(s,60);assertNull(a.pending);
         s.minute=600;s.accounts.put(Construction.account("construction-201"),2999L);
         assertThrows(Engine.Invalid.class,()->act(s,a.id,ActionType.BUILD_CONSTRUCTION,"construction-201",null,null,null,"unfunded"));
     }
@@ -108,7 +116,7 @@ class ConstructionTest {
         assertEquals("",s.agents.get("builder").job);assertEquals(0,s.construction.get("site:new").completedHours);
         assertThrows(Engine.Invalid.class,()->act(s,"second",ActionType.START_CONSTRUCTION,plot,"bakery",24000L,"Overlap","bad"));
         atSite(s,"builder","site:new");Construction.Site site=s.construction.get("site:new");site.requiredHours=1;
-        act(s,"builder",ActionType.BUILD_CONSTRUCTION,site.id,null,null,null,"finish");minutes(s,60);
+        act(s,"builder",ActionType.BUILD_CONSTRUCTION,site.id,null,null,null,"finish");arriveAtWorkArea(s,"builder");minutes(s,60);
         assertEquals("bakery",s.buildings.get(site.id).type);assertEquals(0L,s.accounts.get(Construction.account(site.id)));
         assertEquals(money-1000,s.agents.get("builder").money);assertEquals(total,total(s));
     }
@@ -127,7 +135,7 @@ class ConstructionTest {
         String oldHome=owner.home;long money=owner.money,total=total(s),fund=s.accounts.get(Construction.account(site.id));
         assertThrows(Engine.Invalid.class,()->act(s,"second",ActionType.BUILD_CONSTRUCTION,site.id,null,null,null,"outsider"));
         act(s,owner.id,ActionType.BUILD_CONSTRUCTION,site.id,null,null,null,"self");
-        assertEquals(1000L,s.accounts.get("escrow:construction:self"));minutes(s,30);
+        assertEquals(1000L,s.accounts.get("escrow:construction:self"));arriveAtWorkArea(s,owner.id);minutes(s,30);
         Construction.SiteView visible=Construction.view(s).sites().stream().filter(v->site.id.equals(v.id())).findFirst().orElseThrow();
         assertEquals(30,visible.completedWorkMinutes());assertEquals(60,visible.requiredWorkMinutes());assertFalse(visible.acceptingWorkers());
         assertEquals(List.of(owner.id),visible.workers().stream().map(Construction.WorkerView::id).toList());assertTrue(visible.workers().getFirst().selfBuild());
@@ -151,7 +159,7 @@ class ConstructionTest {
         State s=setup();String plot=clearPlot(s);State.Resident owner=s.agents.get("builder");owner.money=1000;
         Construction.start(s,owner,plot,"house","Owned Home",null,3,"self","home-loan",new Engine.Effects());
         Construction.Site site=s.construction.get("site:home-loan");site.requiredHours=1;atSite(s,owner.id,site.id);
-        act(s,owner.id,ActionType.BUILD_CONSTRUCTION,site.id,null,null,null,"build-owned");minutes(s,60);
+        act(s,owner.id,ActionType.BUILD_CONSTRUCTION,site.id,null,null,null,"build-owned");arriveAtWorkArea(s,owner.id);minutes(s,60);
         assertEquals(site.id,owner.home);assertEquals("completed",site.status);assertEquals(15000,s.loans.get("loan:home-loan").principalCents);
         assertEquals(0,s.loans.get("loan:home-loan").paidCents);owner.arrears=750;long money=owner.money;
         s.minute=1439;Engine.Effects midnight=Engine.tick(s);assertEquals(money-750,owner.money);assertEquals(0,owner.arrears);

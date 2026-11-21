@@ -1,7 +1,8 @@
 import * as THREE from "three";
 import {FALLS,LANDSCAPES} from "./landscapes";
-import {riverLevel,islandElevation} from "./island";
+import {riverLevel,islandElevation,METERS_PER_MAP_UNIT} from "./island";
 import {riverSample} from "./river-geometry";
+import type {WindSample} from "./wind";
 
 const seed=(i:number,salt=1)=>{const n=Math.sin(i*127.1+salt*311.7)*43758.5453;return n-Math.floor(n);};
 const level=riverLevel(LANDSCAPES.lakeRiverEnd+1);
@@ -18,17 +19,42 @@ export function atInlet<T extends {x:number;y:number;z:number}>(point:T):T {
 function local(along:number,across:number,y:number) {
   return {x:FALLS.x+FALLS.dx*along+FALLS.dz*across,z:FALLS.z+FALLS.dz*along-FALLS.dx*across,y};
 }
-export function sprayParticle(i:number,time:number) {
-  const duration=1.05+seed(i,3)*.4,age=(time+i*.137)%duration;
-  const across=(seed(i,2)-.5)*4.2,forward=.6+seed(i,4)*1.3,up=3.7+seed(i,5)*1.4;
-  return {...local(.15+age*forward,(seed(i,6)-.5)*1.8+age*across,level+.15+Math.max(0,up*age-4.5*age*age)),
-    size:.025+seed(i,7)*.035,opacity:Math.sin(age/duration*Math.PI)};
+type ParticleWind=Pick<WindSample,"x"|"z">;
+type ParticleKind="spray"|"mist";
+const calmWind:ParticleWind={x:0,z:0};
+const wrap=(value:number,period:number)=>((value%period)+period)%period;
+function particleAge(i:number,time:number,kind:ParticleKind) {
+  const duration=kind==="spray"?1.05+seed(i,3)*.4:3.4+seed(i,3)*1.8;
+  return {duration,age:wrap((kind==="spray"?time:time*.55)+i*(kind==="spray"?.137:.271),duration)};
 }
-export function mistParticle(i:number,time:number) {
-  const duration=3.4+seed(i,3)*1.8,age=(time*.55+i*.271)%duration,t=age/duration,angle=i*2.399;
+
+/** Air drag grows over each finite particle lifetime, without crossing behind the impact cliff. */
+export function advectWaterfallParticle<T extends {x:number;y:number;z:number}>(point:T,i:number,time:number,kind:ParticleKind,wind:ParticleWind=calmWind,inlet=false):T {
+  if(!Number.isFinite(wind.x)||!Number.isFinite(wind.z)||Math.hypot(wind.x,wind.z)<1e-8)return point;
+  const {age}=particleAge(i,time,kind),response=kind==="spray"?.45:.9,limit=kind==="spray"?.8:2.5;
+  const drag=(age-response*(1-Math.exp(-age/response)))/METERS_PER_MAP_UNIT;
+  let dx=wind.x*drag,dz=wind.z*drag;
+  const scale=Math.min(1,limit/Math.max(1e-8,Math.hypot(dx,dz)));dx*=scale;dz*=scale;
+  const impact=inlet?INLET_IMPACT:FALLS,along=(point.x-impact.x)*impact.dx+(point.z-impact.z)*impact.dz;
+  const windAlong=dx*impact.dx+dz*impact.dz;
+  const behind=Math.min(0,along+windAlong-.06);
+  dx-=impact.dx*behind;dz-=impact.dz*behind;
+  return {...point,x:point.x+dx,z:point.z+dz};
+}
+
+export function sprayParticle(i:number,time:number,wind:ParticleWind=calmWind) {
+  const {duration,age}=particleAge(i,time,"spray");
+  const across=(seed(i,2)-.5)*4.2,forward=.6+seed(i,4)*1.3,up=3.7+seed(i,5)*1.4;
+  const point={...local(.15+age*forward,(seed(i,6)-.5)*1.8+age*across,level+.15+Math.max(0,up*age-4.5*age*age)),
+    size:.025+seed(i,7)*.035,opacity:Math.sin(age/duration*Math.PI)};
+  return advectWaterfallParticle(point,i,time,"spray",wind);
+}
+export function mistParticle(i:number,time:number,wind:ParticleWind=calmWind) {
+  const {duration,age}=particleAge(i,time,"mist"),t=age/duration,angle=i*2.399;
   const spread=.3+age*.6;
-  return {...local(.25+age*.37+Math.cos(angle)*spread*.3,Math.sin(angle)*spread,level+.2+age*.8),
+  const point={...local(.25+age*.37+Math.cos(angle)*spread*.3,Math.sin(angle)*spread,level+.2+age*.8),
     size:.65+age*.35,opacity:Math.sin(t*Math.PI)*(.45+seed(i,4)*.55)};
+  return advectWaterfallParticle(point,i,time,"mist",wind);
 }
 export const WATERFALL_ROCKS=(()=>{
   const rocks:{x:number;y:number;z:number;sx:number;sy:number;sz:number;angle:number}[]=[];

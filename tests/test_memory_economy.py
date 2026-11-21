@@ -168,13 +168,18 @@ def test_economy_restock_funds_real_wages_and_survives_restart():
             clock(day * 1440 + 599, False)
             wait_for(lambda: agent.get(f"/agent/actions/{work['id']}").json()["status"] == "completed")
             clock(day * 1440 + 600)
-            assert agent.get("/agent/observe").json()["self"]["money"] == before + 2000
+            assert agent.get("/agent/observe").json()["self"]["money"] == before
+            assert agent.get("/agent/observe").json()["payroll"][0]["earnedCents"] == 2000
             count = sql("SELECT count(*) FROM transactions WHERE reason LIKE 'restock:%' OR reason='city_subsidy';")
             subprocess.run(COMPOSE + ["restart", "api"], check=True, capture_output=True, timeout=30)
             wait_for(lambda: httpx.get(BASE + "/world", timeout=3).status_code == 200, timeout=60)
             clock(day * 1440 + 600, False); time.sleep(.15); clock(day * 1440 + 600)
             assert sql("SELECT count(*) FROM transactions WHERE reason LIKE 'restock:%' OR reason='city_subsidy';") == count
             assert sql("SELECT data#>>'{buildings,grocery,stock,meal}' FROM world_state;") == "99"
+            clock(day * 1440 + 1019, False)
+            wait_for(lambda: agent.get("/agent/observe").json()["self"]["money"] == before + 2000)
+            clock(day * 1440 + 1020)
+            assert agent.get("/agent/observe").json()["payroll"] == []
             clock((day + 1) * 1440 + 359, False)
             wait_for(lambda: int(sql("SELECT data#>>'{economy,lastDay}' FROM world_state;")) >= day + 1)
             clock((day + 1) * 1440 + 360)

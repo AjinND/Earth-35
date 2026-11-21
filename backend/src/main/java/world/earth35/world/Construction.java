@@ -22,7 +22,7 @@ public final class Construction {
     public record WorkerView(String id,String name,int workMinutes,int requiredMinutes,boolean selfBuild) {}
     public record SiteView(String id,String name,String plannedType,String sponsor,String status,int completedHours,int requiredHours,int reservedHours,
                            long hourlyWageCents,boolean acceptingWorkers,String entranceTarget,int workStartMinute,int workEndMinute,long unreservedBudgetCents,
-                           String laborMode,int completedWorkMinutes,int requiredWorkMinutes,List<WorkerView> workers) {}
+                           String laborMode,int completedWorkMinutes,int requiredWorkMinutes,List<WorkerView> workers,List<ConstructionWork.Area> workAreas) {}
     @io.swagger.v3.oas.annotations.media.Schema(name="ConstructionView")
     public record View(List<Option> options,List<SiteView> sites) {}
     public static View view(State s) {
@@ -31,12 +31,14 @@ public final class Construction {
             long balance=s.accounts.getOrDefault(account(site.id),0L);
             List<WorkerView> workers=s.agents.values().stream().filter(a->{
                 Pending p=a.pending;return p!=null&&"BUILD_CONSTRUCTION".equals(p.type)&&site.id.equals(p.target)
-                    &&!a.paused&&atEntrance(s,a,b)&&s.accounts.getOrDefault("escrow:construction:"+p.id,0L)==cost(site);
+                    &&!a.paused&&!p.activityPaused&&ConstructionWork.atStation(a,p)&&ConstructionWork.onSite(s,a,b)
+                    &&s.accounts.getOrDefault("escrow:construction:"+p.id,0L)==cost(site);
             }).map(a->new WorkerView(a.id,a.name,a.pending.workMinutes,60,"self".equals(site.laborMode))).toList();
             return new SiteView(site.id,b.name,site.plannedType,site.sponsor,site.status,site.completedHours,site.requiredHours,site.reservedHours,
                 site.hourlyWageCents,"building".equals(site.status)&&!"self".equals(site.laborMode)&&site.completedHours+site.reservedHours<site.requiredHours&&balance>=cost(site),
                 "point:"+door.x()+","+door.z(),START_MINUTE,END_MINUTE,balance,
-                site.laborMode,site.completedHours*60+workers.stream().mapToInt(WorkerView::workMinutes).sum(),site.requiredHours*60,workers);
+                site.laborMode,site.completedHours*60+s.agents.values().stream().filter(a->a.pending!=null&&"BUILD_CONSTRUCTION".equals(a.pending.type)&&site.id.equals(a.pending.target))
+                    .mapToInt(a->a.pending.workMinutes).sum(),site.requiredHours*60,workers,ConstructionWork.areas(b));
         }).toList());
     }
     static String account(String site) {return "construction-fund:"+site;}
@@ -119,22 +121,42 @@ public final class Construction {
     }
     private static boolean workHour(long minute) {int time=Math.floorMod(minute,1440);return time>=START_MINUTE&&time+60<=END_MINUTE;}
     public static String build(State s,Resident a,String target,String id,Engine.Effects e) {
+        return build(s,a,target,id,null,e);
+    }
+    public static String build(State s,Resident a,String target,String id,String item,Engine.Effects e) {
         Engine.require(!a.paused&&a.pending==null,"Finish your current action before building");
         Engine.require(!Conversations.active(s,a),"End the current conversation before building");
         Site site=s.construction.get(target);Building b=s.buildings.get(target);
         Engine.require(site!=null&&b!=null&&"building".equals(site.status)&&"construction".equals(b.type),"Choose an active site from livelihood.construction.sites");
         Engine.require(!"self".equals(site.laborMode)||a.id.equals(site.sponsor),"A self-build site can only be worked by its sponsoring owner");
-        Engine.require(atEntrance(s,a,b),"Move to the site's entranceTarget before contributing; the fenced interior stays closed");
+        Engine.require(atEntrance(s,a,b)||ConstructionWork.onSite(s,a,b),"Move to the site's entranceTarget before contributing; only accepted builders can use its worker gate");
         Engine.require(workHour(s.minute),"Choose a full hour of construction between 06:00 and 20:00");
         Engine.require(a.energy>=10&&a.hunger<95,"Eat or rest before building");
         Engine.require(site.completedHours+site.reservedHours<site.requiredHours,"All remaining work is already reserved by builders");
         Engine.require(s.accounts.getOrDefault(account(site.id),0L)>=cost(site),"The site cannot fund another hour");
         Engine.require(!s.accounts.containsKey("escrow:construction:"+id),"This construction reservation already exists");
-        Engine.pay(s,account(site.id),"escrow:construction:"+id,cost(site),"construction_reservation",e);
         Pending p=Engine.pending(id,"BUILD_CONSTRUCTION",site.id,s.minute+60);p.startedAt=s.minute;p.lastWorkedMinute=s.minute;
+        ConstructionWork.prepare(s,a,b,p,item);
+        double routeEffort=0,x=a.x,z=a.z;
+        for(double[] step:p.route){routeEffort+=Travel.segmentEffort(s,x,z,step[0],step[1]);x=step[0];z=step[1];}
+        int approachMinutes=(int)Math.ceil(routeEffort/CityLayout.of(s).walkingSpeed());
+        Engine.require(Math.floorMod(s.minute,1440)+approachMinutes+60<=END_MINUTE,"Allow time to reach the construction work area and complete sixty actual work minutes before 20:00");
+        p.until+=approachMinutes;
+        Engine.pay(s,account(site.id),"escrow:construction:"+id,cost(site),"construction_reservation",e);
         a.pending=p;site.reservedHours++;
         e.facts.add(new Engine.Fact("construction",a.id,site.id,a.name+" chose an hour of "+("self".equals(site.laborMode)?"self-building":"paid building")+" at "+b.name+"."));
-        return "Construction accepted; "+site.materialCostPerHourCents+" cents of materials and "+site.hourlyWageCents+" cents of wages are reserved for one completed hour";
+        return "Construction accepted; approach the assigned work area through the worker gate before labor starts. "+site.materialCostPerHourCents+" cents of materials and "+site.hourlyWageCents+" cents of wages are reserved for sixty actual work minutes";
+    }
+    public static void stop(State s,Resident a,Engine.Effects e) {
+        interrupt(s,a,e,"Resident stopped construction; the unfinished hour was not credited and its reserved funds were released");
+    }
+    public static void interrupt(State s,Resident a,Engine.Effects e,String reason) {
+        Pending p=a.pending;if(p==null||!"BUILD_CONSTRUCTION".equals(p.type))return;
+        Site site=s.construction.get(p.target);String escrow="escrow:construction:"+p.id;
+        long refund=s.accounts.getOrDefault(escrow,0L);
+        if(refund>0)Engine.pay(s,escrow,account(p.target),refund,"construction_refund",e);
+        s.accounts.remove(escrow);if(site!=null)site.reservedHours=Math.max(0,site.reservedHours-1);
+        e.completions.add(new Engine.Completion(p.id,"cancelled",reason));a.pending=null;
     }
     public static void tick(State s,Resident a,Engine.Effects e) {
         Pending p=a.pending;if(p==null||!"BUILD_CONSTRUCTION".equals(p.type))return;
@@ -142,19 +164,23 @@ public final class Construction {
         Site site=s.construction.get(p.target);Building b=s.buildings.get(p.target);
         String escrow="escrow:construction:"+p.id;
         int time=Math.floorMod(s.minute-1,1440);
-        if(site==null||b==null||!"building".equals(site.status)||!atEntrance(s,a,b)||a.paused||a.energy<=0||a.hunger>=98
+        if(site==null||b==null||!"building".equals(site.status)||!ConstructionWork.onSite(s,a,b)||a.paused||a.energy<=0||a.hunger>=98
             ||s.minute!=p.lastWorkedMinute+1||time<START_MINUTE||time>=END_MINUTE||s.accounts.getOrDefault(escrow,0L)!=cost(site)) {
-            long refund=s.accounts.getOrDefault(escrow,0L);
-            if(refund>0)Engine.pay(s,escrow,account(p.target),refund,"construction_refund",e);
-            s.accounts.remove(escrow);if(site!=null)site.reservedHours=Math.max(0,site.reservedHours-1);
-            e.completions.add(new Engine.Completion(p.id,"cancelled","Construction interrupted; funds released and no hour credited"));a.pending=null;return;
+            interrupt(s,a,e,"Construction interrupted; funds released and no hour credited");return;
         }
-        a.energy=Math.max(0,a.energy-.1);p.workMinutes++;p.lastWorkedMinute=s.minute;
+        p.lastWorkedMinute=s.minute;
+        if(p.activityPaused) {p.motion.clear();p.until=s.minute+Math.max(1,60-p.workMinutes);return;}
+        try {
+            if(!ConstructionWork.initialized(p))ConstructionWork.prepare(s,a,b,p,null);
+            if(!ConstructionWork.perform(s,a,b)) {p.until=s.minute+Math.max(1,60-p.workMinutes);return;}
+        } catch(Engine.Invalid inaccessible) {interrupt(s,a,e,inaccessible.getMessage()+"; no unfinished hour was credited");return;}
+        a.energy=Math.max(0,a.energy-.1);p.workMinutes++;
+        p.until=s.minute+Math.max(0,60-p.workMinutes);
         if(p.workMinutes<60)return;
         if(site.hourlyWageCents>0)Engine.pay(s,escrow,a.id,site.hourlyWageCents,"construction_wage",e);
         Engine.pay(s,escrow,"city-supply",site.materialCostPerHourCents,"construction_materials",e);
         s.accounts.remove(escrow);site.reservedHours--;site.completedHours++;
-        e.facts.add(new Engine.Fact("construction",a.id,site.id,a.name+" completed a paid building hour at "+b.name+"."));
+        e.facts.add(new Engine.Fact("construction",a.id,site.id,a.name+" completed sixty minutes of actual "+("self".equals(site.laborMode)?"self-building":"paid building")+" at "+b.name+"."));
         Engine.finish(a,e,"Completed a construction hour; paid "+site.hourlyWageCents+" cents");
         if(site.completedHours>=site.requiredHours)complete(s,site,b,e);
     }

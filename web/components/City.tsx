@@ -13,17 +13,23 @@ import ScenicDestination,{RiverLandscape} from "./ScenicLandscape";
 import {isScenicPlace} from "@/lib/scenic-layout";
 import {clearsRoad,enclosedPlace,prototypeLayout,layoutPoint,type CityLayout} from "@/lib/city-layout";
 import {separateResidents} from "@/lib/resident-spacing";
-import {gatheringBenches,restingSeats,fountainObstacles} from "@/lib/gathering-furniture";
+import {gatheringBenches,restingSeats,workspaceSeats,gatheringTable,gatheringDecorationClear} from "@/lib/gathering-furniture";
+import {residentObstacles} from "@/lib/world-collision";
 import IslandLandscape from "./IslandLandscape";
-import ResidentialBuilding from "./ResidentialBuilding";
+import DesignedBuilding from "./DesignedBuilding";
+import {redesignedBuilding} from "@/lib/architecture";
 import OutdoorDestination from "./OutdoorDestination";
 import ConstructionSite from "./ConstructionSite";
+import WorkspaceFurniture from "./WorkspaceFurniture";
 import WorldObjects from "./WorldObjects";
 import BuildingWindows from "./BuildingWindows";
-import {islandElevation} from "@/lib/island";
+import {islandElevation,walkElevation} from "@/lib/island";
 import IslandCamera,{fitIslandZoom,minimumPlanetZoom} from "./IslandCamera";
 import PlanetLandscape from "./PlanetLandscape";
 import {PlaybackTimeline} from "@/lib/playback-timeline";
+import LivingEnvironment from "./LivingEnvironment";
+import {SurfaceWeather} from "./WeatherMaterial";
+import AtmosphericMotionProvider from "./AtmosphericMotion";
 
 export type CameraCommand={id:number;type:"in"|"out"|"reset"|"planet"|"island"|"settlement"|"residents"};
 export type CameraView={percent:number;canZoomIn:boolean;canZoomOut:boolean;scale:"planet"|"island"|"settlement"|"residents";scaleMeters:number;scalePixels:number};
@@ -48,14 +54,14 @@ function GatheringSpace({building:b,selected,onSelect,showLabels,layout}:{buildi
     {(central||b.type==="plaza")&&<><mesh position={[0,.3,0]}><cylinderGeometry args={[1.8,2,.5,24]}/><meshStandardMaterial color="#b8baa9"/></mesh><mesh position={[0,.6,0]}><cylinderGeometry args={[1.5,1.5,.12,24]}/><meshStandardMaterial color="#8eb4ba"/></mesh></>}
     {garden&&[-2.7,0,2.7].map(x=><group key={x}><mesh position={[x,.4,-2.8]}><boxGeometry args={[2,.5,2.3]}/><meshStandardMaterial color="#94755b"/></mesh>{[-.7,0,.7].map(z=><mesh key={z} position={[x,.75,-2.8+z]}><boxGeometry args={[1.6,.4,.35]}/><meshStandardMaterial color="#6f9365"/></mesh>)}</group>)}
     {courtyard&&<group>{[-3.5,3.5].flatMap(x=>[-3,3].map(z=><mesh key={`${x}-${z}`} castShadow position={[x,1.7,z]}><boxGeometry args={[.3,3.2,.3]}/><meshStandardMaterial color="#a38662"/></mesh>))}{[-3,-1,1,3].map(x=><mesh key={x} castShadow position={[x,3.35,0]}><boxGeometry args={[.6,.3,7]}/><meshStandardMaterial color="#a38662"/></mesh>)}</group>}
-    {(garden||courtyard)&&<mesh castShadow position={[0,.9,2]}><boxGeometry args={[3.5,.25,1.8]}/><meshStandardMaterial color="#a38662"/></mesh>}
+    {(garden||courtyard)&&<mesh castShadow position={[gatheringTable.x,.9,gatheringTable.z]}><boxGeometry args={[gatheringTable.width,.25,gatheringTable.depth]}/><meshStandardMaterial color="#a38662"/></mesh>}
     {gatheringBenches(b.type).map((bench,i)=><Bench key={i} {...bench}/>)}
-    {(park||walk)&&[-1,1].flatMap(side=>[-1,1].map(end=><Tree key={`${side}-${end}`} x={side*(width/2-2)} z={end*(depth/2-2)} size={.7} origin={b} layout={layout}/>))}
-    {!park&&!walk&&<Tree x={-2.7} z={-2.7} size={.7} origin={b} layout={layout}/>}
+    {(park||walk)&&[-1,1].flatMap(side=>[-1,1].map(end=>{const x=side*(width/2-2),z=end*(depth/2-2);return gatheringDecorationClear(b,x,z,1.5*.7)?<Tree key={`${side}-${end}`} x={x} z={z} size={.7} origin={b} layout={layout}/>:null;}))}
+    {!park&&!walk&&gatheringDecorationClear(b,-2.7,-2.7,1.5*.7)&&<Tree x={-2.7} z={-2.7} size={.7} origin={b} layout={layout}/>}
     <Html position={[0,central?7:5,0]} center style={{display:central||showLabels||selected?"block":"none"}}><button className={`map-label ${park?"park-label":""} ${selected?"selected":""} ${central&&!showLabels?"settlement-marker":""}`} onClick={onSelect}>{central?(showLabels||selected?"CENTRAL PARK":"NEW EDEN"):b.name}</button></Html>
   </group>;
 }
-function Structure({building:b,buildings,selected,onSelect,index,showLabels,windows,layout,stop,site}:{building:Building;buildings:readonly Building[];selected:boolean;onSelect:()=>void;index:number;showLabels:boolean;windows:THREE.MeshStandardMaterial;layout:CityLayout;stop?:BusStop;site?:ConstructionSiteView}) {
+function Structure({building:b,buildings,selected,onSelect,index,showLabels,windows,layout,stop,site,immersive}:{building:Building;buildings:readonly Building[];selected:boolean;onSelect:()=>void;index:number;showLabels:boolean;windows:THREE.MeshStandardMaterial;layout:CityLayout;stop?:BusStop;site?:ConstructionSiteView;immersive:boolean}) {
   const house=b.type==="house",residential=b.capacity===1;
   const height=buildingHeight(b,index,layout.version>=2);
   const windowBoxes=useMemo(()=>Array.from({length:Math.floor(height/2)},(_,floor)=>[-2,0,2].flatMap(x=>[
@@ -69,7 +75,7 @@ function Structure({building:b,buildings,selected,onSelect,index,showLabels,wind
   if(isScenicPlace(b.type))return <ScenicDestination building={b} selected={selected} onSelect={onSelect} showLabels={showLabels} organic={layout.version>=2}/>;
   if(b.type==="wilderness")return <group position={[b.x,islandElevation(b.x,b.z),b.z]}><mesh onClick={e=>{e.stopPropagation();onSelect();}} position={[0,.15,0]}><cylinderGeometry args={[2,2,.3,12]}/><meshStandardMaterial color="#c5ba97"/></mesh><Html center position={[0,4,0]} style={{display:showLabels||selected?"block":"none"}}><button className={`map-label ${selected?"selected":""}`} onClick={onSelect}>{b.name}</button></Html></group>;
   if(["park","garden","plaza","promenade","hangout"].includes(b.type)) return <GatheringSpace building={b} selected={selected} onSelect={onSelect} showLabels={showLabels} layout={layout}/>;
-  if(layout.version>=2&&residential)return <ResidentialBuilding building={b} selected={selected} onSelect={onSelect} windows={windows}/>;
+  if(layout.version>=2&&redesignedBuilding(b.type))return <DesignedBuilding building={b} selected={selected} onSelect={onSelect} windows={windows} detailed={showLabels||selected||immersive} showLabels={showLabels}/>;
   return <group position={[b.x,0,b.z]}>
     {layout.version===1&&<mesh receiveShadow position={[0,.015,door.z-b.z]}><boxGeometry args={[layout.spacing-4.8,.03,1.2]}/><meshStandardMaterial color="#d7d2bc" roughness={1}/></mesh>}
     <mesh receiveShadow position={[0,.06,0]}><boxGeometry args={[7.4,.12,7.4]}/><meshStandardMaterial color="#b4baa9"/></mesh>
@@ -97,15 +103,23 @@ export function Scene({world,selected,onSelect,follow,command,onCameraChange,onI
   useEffect(()=>{gl.domElement.dataset.cityBuildings=String(world.buildings.filter(b=>enclosedPlace(b.type)).length);gl.domElement.dataset.constructionSites=String(world.buildings.filter(b=>b.type==="construction").length);gl.domElement.dataset.expandedDestinations=String(world.buildings.filter(b=>(b.outdoorRadius??0)>0).length);},[world.buildings,gl]);
   useEffect(()=>{gl.domElement.dataset.activeConstructionWorkers=String(world.construction?.sites.reduce((sum,site)=>sum+(site.workers?.length??0),0)??0);gl.domElement.dataset.placedObjects=String(world.objects?.filter(object=>object.status==="installed").length??0);},[world.construction,world.objects,gl]);
   const residents=useRef<THREE.Group>(null);
-  const seats=useMemo(()=>restingSeats(world.agents,world.buildings),[world.agents,world.buildings]);
-  const obstacles=useMemo(()=>fountainObstacles(world.buildings),[world.buildings]);
+  const seats=useMemo(()=>new Map([...restingSeats(world.agents,world.buildings),...workspaceSeats(world.agents,world.buildings)]),[world.agents,world.buildings]);
+  const obstacles=useMemo(()=>residentObstacles(world.buildings,world.objects),[world.buildings,world.objects]);
   useFrame(()=>{
     const models=residents.current?.children.filter(m=>m.visible);if(!models)return;
     // Avatars interpolate first (-2), spacing follows (-1), then cameras track
     // the displayed resident. Resolve every frame, including crossing paths.
-    const positions=separateResidents(models.map(m=>({id:m.name,x:m.position.x,z:m.position.z,anchored:!!m.userData.seated||!!m.userData.transit})),obstacles);
+    // Ground spacing alone lets idle residents hide behind each other in the
+    // tilted map. Walking activities retain their actual route and formation;
+    // camera-dependent offsets would push companions off paths into furniture.
+    const matrix=camera.matrixWorld.elements;
+    const projection=!immersive?{right:{x:matrix[0],y:matrix[1],z:matrix[2]},up:{x:matrix[4],y:matrix[5],z:matrix[6]},elevation:walkElevation}:undefined;
+    const positions=separateResidents(models.map(m=>({id:m.name,x:m.position.x,y:m.position.y,z:m.position.z,anchored:!!m.userData.seated||!!m.userData.transit||!!m.userData.routeAnchored||!!m.userData.performanceAnchored,
+      // Stationary gestures can inherit an old seat coordinate after standing.
+      // Only actual seating, transit and active movement may occupy furniture.
+      obstacleAnchored:!!m.userData.seated||!!m.userData.transit||!!m.userData.moving})),obstacles,projection);
     const byId=new Map(positions.map(p=>[p.id,p]));
-    for(const model of models){const p=byId.get(model.name)!;model.position.x=p.x;model.position.z=p.z;}
+    for(const model of models){const p=byId.get(model.name)!;model.position.x=p.x;model.position.y=p.y!;model.position.z=p.z;}
   },-1);
   // Html labels are siblings of the canvas wrapper; listen on their common root.
   const mapElement=gl.domElement.closest<HTMLElement>(".world-canvas")??gl.domElement;
@@ -126,13 +140,15 @@ export function Scene({world,selected,onSelect,follow,command,onCameraChange,onI
   }),[]);
   useEffect(()=>()=>Object.values(materials).forEach(material=>material.dispose()),[materials]);
   const trees=useMemo(()=>Array.from({length:32},(_,i)=>layoutPoint(layout,12+(i%8)*6,47+Math.floor(i/8)*5)).filter(t=>!world.buildings.some(b=>Math.abs(t.x-b.x)<10&&Math.abs(t.z-b.z)<10)),[world.buildings,layout]);
-  return <>
+  return <AtmosphericMotionProvider world={world}><SurfaceWeather.Provider value={world.weather}>
     {!immersive&&<PlanetLandscape showLabels={planetLabels} showIsland={planet} onIsland={onIsland??(()=>{})}/>}
     {(!planet||immersive)&&<>
     <WorldEnvironment world={world} {...materials}/>
     <IslandLandscape showLabels={!immersive&&islandLabels} buildings={world.buildings} layout={layout}/>
+    {layout.version>=4&&<LivingEnvironment world={world}/>}
     <Roads material={materials.roads} layout={layout}/>
-    {world.buildings.map((b,i)=><Structure key={b.id} building={b} buildings={world.buildings} site={world.construction?.sites.find(site=>site.id===b.id)} stop={world.transport?.stops.find(s=>s.id===b.id)} selected={selected===b.id} index={i} showLabels={showLabels} windows={materials.windows} layout={layout} onSelect={()=>onSelect(b.id)}/>)}
+    {world.buildings.map((b,i)=><Structure key={b.id} building={b} buildings={world.buildings} site={world.construction?.sites.find(site=>site.id===b.id)} stop={world.transport?.stops.find(s=>s.id===b.id)} selected={selected===b.id} index={i} showLabels={showLabels} windows={materials.windows} layout={layout} immersive={immersive} onSelect={()=>onSelect(b.id)}/>)}
+    {world.buildings.map(building=><WorkspaceFurniture key={building.id} building={building}/>)}
     <WorldObjects objects={world.objects??[]} selected={selected} onSelect={onSelect} showLabels={showLabels}/>
     <RiverLandscape buildings={world.buildings} layout={layout}/>
     <TrafficScene minute={world.minute} transport={world.transport} tickMs={world.tickMs??5000} layout={layout} timeline={playback.current}/>
@@ -141,20 +157,20 @@ export function Scene({world,selected,onSelect,follow,command,onCameraChange,onI
       <mesh position={[0,3.35,0]} material={materials.lamps}><sphereGeometry args={[.28,8,6]}/></mesh>
       <mesh position={[0,.16,0]} rotation={[-Math.PI/2,0,0]} material={materials.pools} raycast={()=>null}><circleGeometry args={[2.3,20]}/></mesh>
     </group>))}
-    {trees.map((t,i)=><Tree key={i} {...t} size={.7+(i%3)*.2} layout={layout}/>)}
+    {layout.version<4&&trees.map((t,i)=><Tree key={i} {...t} size={.7+(i%3)*.2} layout={layout}/>)}
     <group ref={residents} name="city-residents">{world.agents.map(a=><AgentAvatar key={a.id} tickMs={world.tickMs??5000} minute={world.minute} agent={a} constructionWorking={world.construction?.sites.some(site=>site.workers?.some(worker=>worker.id===a.id))??false} seat={seats.get(a.id)} indoors={world.buildings.some(b=>b.id===a.location&&enclosedPlace(b.type))} selected={selected===a.id} onSelect={()=>onSelect(a.id)} timeline={playback.current}/>)}</group>
     {(!islandLabels||immersive)&&<><Html position={[layoutPoint(layout,-30,65).x,1,layoutPoint(layout,-30,65).z]} center style={{pointerEvents:"none"}}><span className="district-label">RESIDENTIAL DISTRICT</span></Html>
     <Html position={[layoutPoint(layout,30,-48).x,1,layoutPoint(layout,30,-48).z]} center style={{pointerEvents:"none"}}><span className="district-label">DOWNTOWN</span></Html></>}
     </>}
     {!immersive&&<><OrbitControls ref={controls} makeDefault domElement={mapElement} enableDamping minZoom={minZoom} maxZoom={maxZoom} minPolarAngle={.2} maxPolarAngle={Math.PI/2.4} enablePan screenSpacePanning={false} mouseButtons={{LEFT:THREE.MOUSE.PAN,MIDDLE:THREE.MOUSE.DOLLY,RIGHT:THREE.MOUSE.ROTATE}} touches={{ONE:THREE.TOUCH.PAN,TWO:THREE.TOUCH.DOLLY_PAN}}/>
       <IslandCamera world={world} selected={selected} follow={follow} command={command} controls={controls} residents={residents} fitZoom={fitZoom} onChange={reportCamera}/></>}
-  </>;
+  </SurfaceWeather.Provider></AtmosphericMotionProvider>;
 }
 class RenderBoundary extends Component<{children:React.ReactNode;fallback:React.ReactNode},{failed:boolean}> {state={failed:false};static getDerivedStateFromError(){return {failed:true};}render(){return this.state.failed?this.props.fallback:this.props.children;}}
-export default memo(function City(props:{world:World;selected:string;onSelect:(id:string)=>void;follow:string;command:CameraCommand;onCameraChange:(view:CameraView)=>void;onIsland:()=>void}) {
+export default memo(function City({active=true,...props}:{active?:boolean;world:World;selected:string;onSelect:(id:string)=>void;follow:string;command:CameraCommand;onCameraChange:(view:CameraView)=>void;onIsland:()=>void}) {
   const [supported,setSupported]=useState<boolean|null>(null);
   useEffect(()=>{const canvas=document.createElement("canvas");const context=canvas.getContext("webgl2");setSupported(!!context);context?.getExtension("WEBGL_lose_context")?.loseContext();},[]);
   const fallback=<div className="city-fallback"><h2>Explore New Eden</h2><p>The 3D view is unavailable on this device. Every place is still accessible below.</p><div className="place-list">{props.world.buildings.map(b=><button key={b.id} onClick={()=>props.onSelect(b.id)}>{b.name}<small>{b.district}</small></button>)}</div></div>;
   if(supported===false)return fallback;if(supported===null)return <div className="city-loading">Preparing the island…</div>;
-  return <RenderBoundary fallback={fallback}><Canvas className="world-canvas" orthographic shadows dpr={[1,1.5]} camera={{position:[1630,1550,1850],zoom:.3,near:.1,far:30000}} aria-label="Interactive 3D map of New Eden island"><Scene {...props}/></Canvas></RenderBoundary>;
+  return <RenderBoundary fallback={fallback}><Canvas className="world-canvas" frameloop={active?"always":"never"} orthographic shadows dpr={[1,1.5]} camera={{position:[1630,1550,1850],zoom:.3,near:.1,far:30000}} aria-label="Interactive 3D map of New Eden island"><Scene {...props}/></Canvas></RenderBoundary>;
 });

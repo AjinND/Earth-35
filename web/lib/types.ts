@@ -2,10 +2,13 @@ import type {components} from "./protocol.generated";
 
 // SpringDoc marks response record fields optional; the API always emits them.
 type Schema=components["schemas"];
-export type Agent=Omit<Required<Schema["PublicAgent"]>,"raincoatWorn"|"seatIndex"|"motion"|"vehicleId"|"facingHeading"|"facingUntil">&{raincoatWorn?:boolean;seatIndex?:number|null;vehicleId?:string|null;motion?:{x:number;z:number;heading:number}[]|null;facingHeading?:number|null;facingUntil?:number|null};
-export type Building=Omit<Required<Schema["StateBuilding"]>,"entrance"|"hours"|"outdoorRadius"|"plannedType">&{
+export type ActivityProgress={mode:"search"|"walk"|"observe"|"stationary";phase:"travel"|"inspect"|"perform"|"blocked";label:string;activeMinutes:number;requestedMinutes:number;inspectedStops:number;distance:number};
+export type ActionPerformance={actionId:string;action:string;phase:string;posture:string;gesture:string;heldItem?:string|null;task:string;heading?:number|null;anchored:boolean;activeMinutes:number};
+export type Agent=Omit<Required<Schema["PublicAgent"]>,"raincoatWorn"|"seatIndex"|"motion"|"vehicleId"|"facingHeading"|"facingUntil"|"activityProgress"|"performance">&{raincoatWorn?:boolean;seatIndex?:number|null;vehicleId?:string|null;motion?:{x:number;z:number;heading:number;fraction?:number}[]|null;facingHeading?:number|null;facingUntil?:number|null;activityProgress?:ActivityProgress|null;performance?:ActionPerformance|null};
+export type Building=Omit<Required<Schema["StateBuilding"]>,"entrance"|"hours"|"outdoorRadius"|"plannedType"|"workspaces">&{
   outdoorRadius?:number;
   plannedType?:string|null;
+  workspaces?:{id:string;kind:string;x:number;z:number;heading:number}[];
   entrance?:{side:string;x:number;z:number};
   hours?:{openMinute:number;closeMinute:number;openDays:number[];openNow:boolean;nextOpenMinute:number};
 };
@@ -16,7 +19,40 @@ export type BusRoute={id:string;name:string;stops:string[];firstDeparture:number
 export type Vehicle={id:string;type:string;route:string;name:string;x:number;z:number;heading:number;stop:string;seatsAvailable:number;motion?:{x:number;z:number;heading:number}[]};
 export type Transport={stops:BusStop[];routes:BusRoute[];vehicles:Vehicle[];signals:{x:number;z:number;vehicleGreen:string;pedestrianGreen:boolean}[];departures:{bus:string;route:string;stop:string;arrivalMinute:number;departureMinute:number;remainingStops:string[];seatsAvailable:number}[]};
 export type Routine={wakeMinute:number;sleepMinute:number;morningActivity:string};
-export type SocialPlan={id:string;proposer:string;invited:string;destination:string;activity:string;status:string;meetingMinute:number;expires:number};
+export type ResidentMind={
+  observedMinute:number;reviewedRevision:number;
+  scene?:{location:string;place:string;purpose:string|null;indoors:boolean;weather:string;temperature:number;daylight:string;objects:string[];visiblePlaces:string[]}|null;
+  intention?:{focus:string;nextStep:string;reason:string;target:string|null;chosenMinute:number;reviewMinute:number}|null;
+  feeling?:string|null;feelingMinute:number;
+  notices:{revision:number;kind:string;description:string;priority:number;minute:number}[];
+  visits:Record<string,{location:string;name:string;count:number;lastMinute:number}>;
+  outcomes:{id:string;action:string;target:string|null;status:string;result:string;minute:number}[];
+  reflections:{lesson:string;outcomeId:string;minute:number}[];
+};
+export type RelationshipAppraisal={
+  label?:string|null;
+  feeling:string;
+  reason:string;
+  evidence:string[];
+  warmth?:number|null;
+  trust?:number|null;
+  respect?:number|null;
+  closeness?:number|null;
+  attraction?:number|null;
+  tension?:number|null;
+};
+export type RelationshipEvidence={id:string;kind:string;actor:string|null;description:string;minute:number};
+export type RelationshipBond={
+  name?:string|null;
+  interactionCount:number;
+  lastInteractionMinute:number;
+  appraisal?:RelationshipAppraisal|null;
+  appraisedMinute:number;
+  history:{minute:number;appraisal:RelationshipAppraisal;evidence:RelationshipEvidence[]}[];
+  evidence:RelationshipEvidence[];
+};
+export type SocialPlanTask={resident:string;destination:string;activity:string;durationMinutes:number;action?:string|null;target?:string|null;item?:string|null};
+export type SocialPlan={id:string;proposer:string;invited:string;destination:string;activity:string;status:string;meetingMinute:number;expires:number;tasks?:Record<string,SocialPlanTask>|null;finished?:string[];blocked?:Record<string,string>|null;startedMinute?:number|null;completedMinute?:number|null};
 export type SubjectKnowledge={readingMinutes:number;studyMinutes:number;lastStudiedMinute:number;concepts:string[];level:string;points:number;maximumPoints:number;researchPoints?:number;understanding:number;intermediateConcepts:number;advancedConcepts:number;depth:string;canReason:boolean;canCreate:boolean};
 export type BookView={id:string;title:string;subject:string;description:string;copies:number;availableCopies:number;readingMinutes:number;studyMinutes:number;masteryMinutes:number;depth:string;lessonMinutes:number;lessonCount:number;prerequisitePoints:number;unlocked:boolean};
 export type ReasoningView={id:string;subject:string;problem:string;analysis:string;concepts:string[];minute:number};
@@ -32,13 +68,17 @@ export type InnovationsPublicView={recipes:ProjectRecipe[];projects:ProjectView[
 export type ObservedProblem={id:string;kind:string;description:string;subjects:string[];evidence:Record<string,number>};
 export type InnovationsView=InnovationsPublicView & {interests:string[];invitations:ProjectInvitation[];interestedResidents:{id:string;name:string;interests:string[]}[];problems:ObservedProblem[];sharedConditions?:ObservedProblem[]};
 export type ConstructionWorker={id:string;name:string;workMinutes:number;requiredMinutes:number;selfBuild:boolean};
-export type ConstructionSiteView={id:string;name:string;plannedType:string;sponsor:string;status:string;completedHours:number;requiredHours:number;reservedHours:number;hourlyWageCents:number;acceptingWorkers:boolean;entranceTarget:string;workStartMinute:number;workEndMinute:number;unreservedBudgetCents:number;laborMode?:string;completedWorkMinutes?:number;requiredWorkMinutes?:number;workers?:ConstructionWorker[]};
+export type ConstructionSiteView={id:string;name:string;plannedType:string;sponsor:string;status:string;completedHours:number;requiredHours:number;reservedHours:number;hourlyWageCents:number;acceptingWorkers:boolean;entranceTarget:string;workStartMinute:number;workEndMinute:number;unreservedBudgetCents:number;laborMode?:string;completedWorkMinutes?:number;requiredWorkMinutes?:number;workers?:ConstructionWorker[];workAreas?:{id:string;x:number;z:number;heading:number}[]};
 export type ConstructionView={options:{type:string;workHours:number;materialCostPerHourCents:number;hourlyWageCents:number;budgetCents:number;selfBuildBudgetCents?:number}[];sites:ConstructionSiteView[]};
 export type PlacedWorldObject={id:string;owner:string;kind:string;text:string;business:string|null;x:number;z:number;status:string};
 export type FinanceLoan={id:string;purpose:string;principalCents:number;interestCents:number;totalRepaymentCents:number;paidCents:number;outstandingCents:number;overdueCents:number;termYears:number;installments:number;installmentCents:number;startedMinute:number;nextDueMinute:number|null;maturityMinute:number;status:string};
 export type FinancingView={offers:{termYears:number;annualSimpleInterestBasisPoints:number;installments:number}[];loans:FinanceLoan[];outstandingCents:number;overdueCents:number;borrowingLimitCents:number};
 export type World=Omit<Required<Schema["World"]>,"buildings"|"agents"|"events"|"transport"|"geography"|"innovations"|"construction"|"objects"> & {buildings:Building[];agents:Agent[];events:WorldEvent[];transport?:Transport;geography?:import("./city-layout").CityLayout;innovations?:InnovationsPublicView;construction?:ConstructionView;objects?:PlacedWorldObject[]};
-export type Resident=Omit<Required<Schema["Resident"]>,"pending"|"nightPlan"|"inventory"|"relationships"|"routine"|"raincoatWorn"|"sleepDebtMinutes"|"lastWakeMinute"|"overtimeMinutes"|"leaveDay"|"workPermit"|"knowledge"|"bookLoans"|"bookStudies"|"interests"|"researchFindings"|"facingHeading"|"facingUntil"> & {
+export type Resident=Omit<Required<Schema["Resident"]>,"pending"|"nightPlan"|"inventory"|"relationships"|"bonds"|"routine"|"raincoatWorn"|"sleepDebtMinutes"|"lastWakeMinute"|"overtimeMinutes"|"leaveDay"|"workPermit"|"knowledge"|"bookLoans"|"bookStudies"|"interests"|"researchFindings"|"facingHeading"|"facingUntil"|"mind"|"activityHistory"|"activityMotion"> & {
+  bonds?:Record<string,RelationshipBond>;
+  activityMotion?:{x:number;z:number;heading:number;fraction?:number}[];
+  activityHistory?:{id:string;label:string;location:string;mode:string;activeMinutes:number;inspectedStops:number;distance:number;minute:number}[];
+  mind?:ResidentMind|null;
   facingHeading?:number|null;
   facingUntil?:number|null;
   interests?:string[];
@@ -55,7 +95,7 @@ export type Resident=Omit<Required<Schema["Resident"]>,"pending"|"nightPlan"|"in
   raincoatWorn?:boolean;
   sleepDebtMinutes?:number;
   routine:Routine|null;
-  pending:(Omit<Required<Schema["Pending"]>,"overtimeMinutes"|"seatIndex">&{overtimeMinutes?:number;seatIndex?:number|null;waitingReason?:string|null;socialWith?:string|null})|null;
+  pending:(Omit<Required<Schema["Pending"]>,"overtimeMinutes"|"seatIndex"|"activityExecution">&{overtimeMinutes?:number;seatIndex?:number|null;waitingReason?:string|null;socialWith?:string|null;activityExecution?:Schema["ActivityExecutionProgress"]|null})|null;
   nightPlan:Required<Schema["NightPlan"]>|null;
   inventory:Record<string,number>;
   relationships:Record<string,string>;

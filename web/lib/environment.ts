@@ -21,5 +21,5 @@ export function environmentAt(minute:number,weather:string) {
   const twilight=(1-smooth(.02,.35,Math.abs(elevation)))*smooth(-.23,0,elevation);
   const cloud=weather==="Rain"?1:weather==="Overcast"?.75:.08;
   return {phase:dayPhase(minute),daylight,twilight,cloud,rain:weather==="Rain"?1:0,
-    sun:[-Math.cos(angle)*110,elevation*110,40] as [number,number,number]};
+    sun:[Math.cos(angle)*110,elevation*110,elevation*40] as [number,number,number]};
 }

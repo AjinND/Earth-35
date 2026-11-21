@@ -26,15 +26,20 @@ class WorldObjectsTest {
         Engine.Effects e=new Engine.Effects();Engine.apply(s,s.agents.get("maker"),new Command(id,type,target,message,item,null,null),id,e);return e;
     }
     private void minutes(State s,int n){for(int i=0;i<n;i++)Engine.tick(s);}
+    private void arriveAtWorkPosition(State s) {
+        State.Resident a=s.agents.get("maker");
+        for(int i=0;i<20&&a.pending!=null&&!"perform".equals(WorldObjects.workView(a).phase());i++)Engine.tick(s);
+        assertNotNull(a.pending);assertEquals("perform",WorldObjects.workView(a).phase());assertEquals(0,a.pending.workMinutes);
+    }
     private long total(State s){return s.accounts.values().stream().mapToLong(Long::longValue).sum()+s.agents.values().stream().mapToLong(a->a.money).sum();}
     private String install(State s) {
-        State.Resident a=s.agents.get("maker");act(s,ActionType.PLACE_OBJECT,point(a.x+3,a.z),"signboard","Community workshop ahead","sign");minutes(s,15);return "object:sign";
+        State.Resident a=s.agents.get("maker");act(s,ActionType.PLACE_OBJECT,point(a.x+3,a.z),"signboard","Community workshop ahead","sign");arriveAtWorkPosition(s);minutes(s,15);return "object:sign";
     }
     @Test void installationReservesRealMoneyAndRequiresTimedWorkSurvivingRestart() throws Exception {
         State s=setup();State.Resident a=s.agents.get("maker");long total=total(s),money=a.money;
         act(s,ActionType.PLACE_OBJECT,point(a.x+3,a.z),"signboard","Library this way","save");
         assertEquals(money-2500,a.money);assertEquals(2500,s.accounts.get("escrow:object:save"));assertTrue(Engine.busy(a));assertTrue(s.worldObjects.isEmpty());
-        minutes(s,7);ObjectMapper json=new ObjectMapper();s=json.readValue(json.writeValueAsString(s),State.class);a=s.agents.get("maker");
+        arriveAtWorkPosition(s);minutes(s,7);ObjectMapper json=new ObjectMapper();s=json.readValue(json.writeValueAsString(s),State.class);a=s.agents.get("maker");
         minutes(s,7);assertTrue(s.worldObjects.isEmpty());minutes(s,1);assertNull(a.pending);
         assertEquals("Library this way",s.worldObjects.get("object:save").text);assertEquals(1,WorldObjects.view(s).size());
         assertFalse(s.accounts.containsKey("escrow:object:save"));assertEquals(total,total(s));assertEquals(money-2500,a.money);
@@ -57,7 +62,7 @@ class WorldObjectsTest {
     }
     @Test void moveRetainsOldPlacementUntilWorkCompletesAndChecksOwnership() {
         State s=setup();String id=install(s);var o=s.worldObjects.get(id);double oldX=o.x,oldZ=o.z;
-        act(s,ActionType.MOVE_OBJECT,id,point(oldX,oldZ+3),null,"move");minutes(s,9);assertEquals(oldZ,o.z);
+        act(s,ActionType.MOVE_OBJECT,id,point(oldX,oldZ+3),null,"move");arriveAtWorkPosition(s);minutes(s,9);assertEquals(oldZ,o.z);
         minutes(s,1);assertEquals(oldX,o.x);assertEquals(oldZ+3,o.z);assertEquals(2500,s.accounts.get("city-supply"));
         o.owner="someone-else";assertThrows(Engine.Invalid.class,()->act(s,ActionType.MOVE_OBJECT,id,point(oldX+3,oldZ),null,"steal"));
         assertEquals(oldZ+3,o.z);
@@ -87,7 +92,7 @@ class WorldObjectsTest {
         State s=setup();State.Resident a=s.agents.get("maker");String target=point(a.x+3,a.z);
         assertThrows(Engine.Invalid.class,()->act(s,ActionType.PLACE_OBJECT,target,"advertisement:missing","Buy bread","bad"));
         Ventures.Business business=new Ventures.Business();business.id="business";business.owners.add(a.id);s.businesses.put(business.id,business);
-        act(s,ActionType.PLACE_OBJECT,target,"advertisement:business","Buy bread","ad");minutes(s,15);
+        act(s,ActionType.PLACE_OBJECT,target,"advertisement:business","Buy bread","ad");arriveAtWorkPosition(s);minutes(s,15);
         var sign=s.worldObjects.get("object:ad");assertEquals("advertisement",sign.kind);assertEquals("business",sign.business);
     }
     @Test void installedSignsInvalidateNavigationCacheAndRoutesGoAroundThem() {

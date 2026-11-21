@@ -22,7 +22,10 @@ public final class WorkAccess {
             &&!DailyRoutines.onLeave(a,minute)&&minute>=p.from&&minute<p.until&&staffWindow(j,minute);
     }
     public static boolean fullHour(State s,Resident a,Building b,long minute) {
-        for(int i=0;i<60;i++)if(!Places.canEnter(s,a,b,minute+i))return false;
+        return forMinutes(s,a,b,minute,60);
+    }
+    public static boolean forMinutes(State s,Resident a,Building b,long minute,int duration) {
+        for(int i=0;i<duration;i++)if(!Places.canEnter(s,a,b,minute+i))return false;
         return true;
     }
     public static boolean funded(State s,Resident a,Job j) {

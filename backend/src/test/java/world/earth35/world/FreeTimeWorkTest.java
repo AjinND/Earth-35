@@ -52,14 +52,20 @@ class FreeTimeWorkTest {
         assertEquals(60,a.overtimeMinutes);assertEquals(0,DailyRoutines.regularMinutesToday(a,s.minute));
         var json=new ObjectMapper();State restored=json.readValue(json.writeValueAsString(s),State.class);Resident saved=restored.agents.get("resident");
         Engine.Effects completion=null;while(restored.minute<540)completion=Engine.tick(restored);
-        assertEquals(balance+3000,saved.money);assertFalse(restored.accounts.containsKey("escrow:extra"));
-        assertTrue(completion.payments.stream().anyMatch(p->p.reason().equals("overtime_wage")));
-        Engine.tick(restored);assertEquals(balance+3000,saved.money);
+        assertEquals(balance,saved.money);assertFalse(restored.accounts.containsKey("escrow:extra"));
+        assertTrue(completion.payments.stream().anyMatch(p->p.reason().equals("earned_wage_accrual")));
+        Engine.tick(restored);assertEquals(balance,saved.money);
         act(restored,saved,ActionType.WORK,null,null,"regular");assertEquals(2000,restored.accounts.get("escrow:regular"));
+        while(restored.minute<1020)completion=Engine.tick(restored);
+        assertEquals(balance+5000,saved.money);
+        assertTrue(completion.payments.stream().anyMatch(p->p.reason().equals("overtime_wage")));
+        Engine.tick(restored);assertEquals(balance+5000,saved.money);
     }
     @Test void hourCrossingTheShiftBoundaryProratesExtraMinutes() {
         State s=State.seed();s.minute=990;Resident a=resident(s,"office");
-        assertThrows(Engine.Invalid.class,()->act(s,a,ActionType.WORK,null,null,"regular"));
+        act(s,a,ActionType.WORK,null,null,"regular");
+        assertEquals(1020,a.pending.until);assertEquals(1000,s.accounts.get("escrow:regular"));
+        s=State.seed();s.minute=990;a=resident(s,"office");
         act(s,a,ActionType.WORK,null,"overtime","mixed");
         assertEquals(2500,s.accounts.get("escrow:mixed"));assertEquals(30,a.overtimeMinutes);
         assertEquals(30,DailyRoutines.regularMinutesToday(a,s.minute));

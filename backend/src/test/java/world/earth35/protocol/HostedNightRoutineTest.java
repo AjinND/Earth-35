@@ -26,16 +26,54 @@ class HostedNightRoutineTest {
     }
     @AfterEach void stop() {runtime.stop();}
     HostedAgentService.Job job(int calls) {return new HostedAgentService.Job("alex","nvidia","test-model","unused",0,0,calls,0);}
-    @Test void providerTimeoutAttemptsTheNightRoutineWithoutAnotherProviderCall() {
+    AgentService.Observation nightObservation() {
+        return new AgentService.Observation(1200,1,"Clear","20:00",true,1800,self,List.of(),
+            List.copyOf(State.prototypeSeed().buildings.values()),List.of(),List.of(),List.of(),List.of(),List.of());
+    }
+    @Test void restedUnplannedResidentsKeepTheirModelChosenNightActivity() {
+        self.energy=100;when(agents.observe(eq("alex"),anyLong())).thenReturn(nightObservation());
+        Command look=new Command("notice-stars",ActionType.LOOK,null,null,null,null,null);
+        doReturn(new HostedAgentService.Decision(look,null,null,27,null)).when(runtime).decide(any(),any(),anyList());
+        when(agents.hostedAction("alex",look,null)).thenReturn(new Receipt("look","completed","Observation refreshed",1200));
+        runtime.run(job(0));
+        verify(agents,never()).nightRoutine(any());verify(runtime).decide(any(),any(),anyList());
+        verify(agents).hostedAction("alex",look,null);verifyNoInteractions(http);
+    }
+    @Test void anAuthoredNightClosingIsPassedToTheActionService() {
+        when(agents.observe(eq("alex"),anyLong())).thenReturn(nightObservation());
+        Command closing=new Command("goodnight",ActionType.END_CHAT,null,"I'm heading home. See you tomorrow! Take care.",null,null,null);
+        doReturn(new HostedAgentService.Decision(closing,null,null,27,null)).when(runtime).decide(any(),any(),anyList());
+        when(agents.hostedAction("alex",closing,null)).thenReturn(new Receipt("closing","completed","Action completed",1200));
+        runtime.run(job(0));
+        verify(agents,never()).nightRoutine(any());verify(agents).hostedAction("alex",closing,null);
+        verify(runtime).decide(any(),any(),anyList());
+    }
+    @Test void aDeclaredNightActivityKeepsProviderDecisionsAvailable() {
+        self.nightPlan=new State.NightPlan("Watch the meteor shower",1300);
+        when(agents.observe(eq("alex"),anyLong())).thenReturn(nightObservation());
+        Command talk=new Command("stars",ActionType.TALK,"maya","The meteor shower is starting.",null,null,null);
+        doReturn(new HostedAgentService.Decision(talk,null,null,27,null)).when(runtime).decide(any(),any(),anyList());
+        when(agents.hostedAction("alex",talk,null)).thenReturn(new Receipt("talk","completed","Spoke",1200));
+        runtime.run(job(0));
+        verify(agents,never()).nightRoutine(any());verify(agents).hostedAction("alex",talk,null);
+    }
+    @Test void providerTimeoutDoesNotInventANightDecision() {
         doThrow(new HostedAgentService.ProviderFailure("Model timed out",false)).when(runtime).decide(any(),any(),anyList());
         runtime.run(job(0));
-        verify(agents).nightRoutine("alex");verify(agents,never()).hostedAction(any(),any(),any());
+        verify(agents,never()).nightRoutine(any());verify(agents,never()).hostedAction(any(),any(),any());
         verifyNoInteractions(http);
     }
-    @Test void exhaustedInferenceBudgetStillAllowsTheNightRoutine() {
+    @Test void exhaustedInferenceBudgetLeavesTheResidentWithoutANewAction() {
         runtime.run(job(200));
-        verify(agents).nightRoutine("alex");verify(runtime,never()).decide(any(),any(),anyList());
+        verify(agents,never()).nightRoutine(any());verify(agents,never()).hostedAction(any(),any(),any());
+        verify(runtime,never()).decide(any(),any(),anyList());
         verifyNoInteractions(memory,http);
+    }
+    @Test void internalRuntimeFailureDoesNotAuthorANightDecision() {
+        when(memory.recall(anyString(),any())).thenThrow(new IllegalStateException("Storage unavailable"));
+        runtime.run(job(0));
+        verify(agents,never()).nightRoutine(any());verify(agents,never()).hostedAction(any(),any(),any());
+        verify(runtime,never()).decide(any(),any(),anyList());
     }
     @Test void activeAndPausedResidentsAreLeftAlone() {
         self.pending=new State.Pending();runtime.run(job(0));
@@ -52,12 +90,14 @@ class HostedNightRoutineTest {
         when(agents.hostedAction("alex",run,null)).thenReturn(new Receipt("new-trip","accepted","Action accepted",600));
         runtime.run(job(0));verify(agents).hostedAction("alex",run,null);verify(runtime).decide(any(),any(),anyList());
     }
-    @Test void reachingHomeContinuesTheBedtimeRoutineWithoutModelInference() {
+    @Test void aLegacyBedtimeFlagDoesNotMakeAResidentSleepWithoutChoosingIt() {
         self.location=self.home;self.bedtimeRoutine=true;
-        when(agents.nightRoutine("alex")).thenReturn(new Receipt("sleep","accepted","Action accepted",1200));
+        Command read=new Command("read-instead",ActionType.READ_BOOK,"poetry",null,null,30,null);
+        doReturn(new HostedAgentService.Decision(read,null,null,27,null)).when(runtime).decide(any(),any(),anyList());
+        when(agents.hostedAction("alex",read,null)).thenReturn(new Receipt("read","accepted","Reading started",1200));
         runtime.run(job(0));
-        verify(agents).nightRoutine("alex");verify(runtime,never()).decide(any(),any(),anyList());
-        verifyNoInteractions(memory,http);
+        verify(agents,never()).nightRoutine(any());verify(runtime).decide(any(),any(),anyList());
+        verify(agents).hostedAction("alex",read,null);verifyNoInteractions(http);
     }
     @Test void modelChosenNightPlansArePassedToTheValidatedActionService() {
         Command look=new Command("plan",ActionType.LOOK,null,null,null,null,null);

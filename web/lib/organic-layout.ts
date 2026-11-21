@@ -1,4 +1,5 @@
 import {onIsland,type IslandPoint} from "./island";
+import {segmentIndex} from "./segment-index";
 
 // A smooth, invertible street survey. Transit keeps its logical lane coordinates;
 // the server and both maps use this same survey to bend the occupied streets.
@@ -27,16 +28,8 @@ export const organicStreets=streetSurveys.map(([x,z,nx,nz])=>{
   return Array.from({length:steps+1},(_,i)=>organicPoint(x+(nx-x)*i/steps,z+(nz-z)*i/steps));
 });
 export const svgLine=(points:readonly IslandPoint[])=>points.map((p,i)=>`${i?"L":"M"}${p.x},${p.z}`).join(" ");
-export function streetDistance(x:number,z:number) {
-  let squaredDistance=Infinity;
-  for(const points of organicStreets)for(let i=1;i<points.length;i++) {
-    const a=points[i-1],b=points[i],dx=b.x-a.x,dz=b.z-a.z;
-    const t=Math.max(0,Math.min(1,((x-a.x)*dx+(z-a.z)*dz)/(dx*dx+dz*dz)));
-    const px=x-a.x-t*dx,pz=z-a.z-t*dz;
-    squaredDistance=Math.min(squaredDistance,px*px+pz*pz);
-  }
-  return Math.sqrt(squaredDistance);
-}
+const streetIndex=segmentIndex(organicStreets);
+export function streetDistance(x:number,z:number) {return streetIndex(x,z).distance;}
 
 export {RIVER,nearestRiver,bridgeZones} from "./river";
 import {nearestRiver} from "./river";

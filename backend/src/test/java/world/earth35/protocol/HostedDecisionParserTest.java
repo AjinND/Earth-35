@@ -25,6 +25,42 @@ class HostedDecisionParserTest {
         assertEquals(ActionType.LOOK,result.command().action());assertEquals(2,result.memories().size());
         assertEquals("semantic",result.memories().getFirst().kind());assertEquals(java.util.List.of("maya"),result.memories().getFirst().entities());
     }
+    @Test void dialogueCarriesExplicitProposalAndParticipantAssignments() {
+        var result=parse("""
+            {"action":"TALK","target":"mei","message":"Let's search together.","sharedPlan":{
+              "operation":"propose","destination":"trail","activity":"Search for flowers","delayMinutes":1,
+              "durationMinutes":20,"tasks":[
+                {"resident":"diego","destination":"trail","activity":"Search near the trailhead","durationMinutes":20},
+                {"resident":"mei","destination":"point:150,200","activity":"Search the open area","durationMinutes":20}]}}
+            """);
+        assertEquals("propose",result.command().sharedPlan().operation());
+        assertEquals("mei",result.command().target());
+        assertEquals("point:150,200",result.command().sharedPlan().tasks().getLast().destination());
+        assertEquals(20,result.command().sharedPlan().tasks().getLast().durationMinutes());
+        var accept=parse("{\"action\":\"END_CHAT\",\"target\":\"diego\",\"message\":\"Agreed. See you there!\",\"sharedPlan\":{\"operation\":\"accept\",\"plan\":\"outing\"}}");
+        assertEquals("outing",accept.command().sharedPlan().plan());
+    }
+    @ParameterizedTest @ValueSource(strings={
+        "{\"action\":\"LOOK\",\"sharedPlan\":{\"operation\":\"accept\",\"plan\":\"outing\"}}",
+        "{\"action\":\"TALK\",\"sharedPlan\":{\"operation\":\"propose\",\"delayMinutes\":\"1\"}}",
+        "{\"action\":\"TALK\",\"sharedPlan\":{\"operation\":\"propose\",\"durationMinutes\":0}}",
+        "{\"action\":\"TALK\",\"sharedPlan\":{\"operation\":\"propose\",\"tasks\":[{\"resident\":\"mei\"}]}}",
+        "{\"action\":\"TALK\",\"sharedPlan\":{\"operation\":\"accept\",\"consent\":true}}",
+        "{\"action\":\"TALK\",\"sharedPlan\":\"yes\"}"})
+    void malformedAgreementsNeverDegradeIntoUntrackedSpeech(String content) {
+        var error=assertThrows(HostedAgentService.ProviderFailure.class,()->parse(content));
+        assertTrue(error.invalidOutput);assertEquals(73,error.tokens);
+    }
+    @Test void typedWorldTasksPreserveRealActionTargetsAndCannotScheduleUnsupportedEffects() {
+        var answer=json.createObjectNode().put("action","TALK").put("target","mei").put("message","Let's build together.");
+        var plan=answer.putObject("sharedPlan").put("operation","propose").put("destination","park").put("activity","Build our prototype");
+        var task=plan.putArray("tasks").addObject().put("resident","diego").put("destination","studio")
+            .put("activity","Build the prototype").put("durationMinutes",60).put("action","BUILD_PROJECT").put("target","project-1");
+        var parsed=parse(answer.toString()).command().sharedPlan().tasks().getFirst();
+        assertEquals(ActionType.BUILD_PROJECT,parsed.action());assertEquals("project-1",parsed.target());
+        task.put("action","TRANSFER");
+        assertTrue(assertThrows(HostedAgentService.ProviderFailure.class,()->parse(answer.toString())).invalidOutput);
+    }
     @Test void acceptsFencedLowercaseActionWithMalformedOptionalAnnotations() {
         var result=parse("```JSON\n{\"action\":\" move \",\"target\":\"park\",\"nightPlan\":{\"until\":\"later\"},\"routine\":{},\"memory\":\"hello\"}\n```");
         assertEquals(ActionType.MOVE,result.command().action());assertEquals("park",result.command().target());

@@ -104,7 +104,10 @@ final class IslandNavigation {
         Building source=s.buildings.get(resident.location);
         if(source==null)source=s.buildings.values().stream().filter(b->Places.enclosed(b)&&Math.abs(resident.x-b.x)<3.35&&Math.abs(resident.z-b.z)<3.35).findFirst().orElse(null);
         if(Places.enclosed(source)) {
-            var door=Places.entrance(source);result.add(new double[]{door.x(),resident.z});result.add(new double[]{door.x(),door.z()});start=new Point(door.x(),door.z());
+            var door=Places.entrance(source);
+            if(ConstructionWork.exitingSite(s,resident)!=null)result.addAll(ConstructionWork.exitRoute(s,resident,source));
+            else {var workspaceExit=Workspaces.exitRoute(s,resident,source);if(workspaceExit!=null)result.addAll(workspaceExit);else {result.add(new double[]{door.x(),resident.z});result.add(new double[]{door.x(),door.z()});}}
+            start=new Point(door.x(),door.z());
         }
         var entrance=Places.entrance(destination);Point goal=new Point(entrance.x(),entrance.z());
         if(Math.hypot(start.x()-goal.x(),start.z()-goal.z())<.001)return result;

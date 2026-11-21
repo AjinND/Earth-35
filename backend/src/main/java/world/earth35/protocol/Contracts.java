@@ -5,7 +5,7 @@ import jakarta.validation.Valid;
 import java.util.*;
 
 public class Contracts {
-    public enum ActionType { MOVE, RUN, JUMP, LOOK, TALK, CALL_OUT, ACKNOWLEDGE, DECLINE_CALL, BUY, SELL, EAT, WORK, REQUEST_OVERTIME, TAKE_LEAVE, CANCEL_LEAVE, REST, SLEEP, WEAR, REMOVE_CLOTHING, APPLY_JOB, ACCEPT_JOB, QUIT_JOB, USE_OBJECT, TRANSFER, BOARD_BUS, WAIT_BUS, TRAVEL_BUS, CONTINUE_TRAVEL, WAIT_RAIN, PAUSE_TRAVEL, END_CHAT, RELATE, PROPOSE_PLAN, ACCEPT_PLAN, DECLINE_PLAN, CANCEL_PLAN, JOIN_PLAN, READ_BOOK, BORROW_BOOK, RETURN_BOOK, REASON, CREATE_WORK, DECLARE_INTEREST, START_PROJECT, INVITE_PROJECT, ACCEPT_PROJECT, DECLINE_PROJECT, RESEARCH_PROJECT, BUILD_PROJECT, USE_PRODUCT, ENDORSE_BUSINESS, LAUNCH_BUSINESS, START_BUSINESS, FUND_BUSINESS, SET_PRODUCT_PRICE, PRODUCE_PRODUCT, WITHDRAW_PROFIT, START_CONSTRUCTION, BUILD_CONSTRUCTION, REPAY_LOAN, PLACE_OBJECT, MOVE_OBJECT }
+    public enum ActionType { CONTINUE_ACTIVITY, PAUSE_ACTIVITY, RESUME_ACTIVITY, STOP_ACTIVITY, MOVE, RUN, JUMP, LOOK, TALK, CALL_OUT, ACKNOWLEDGE, DECLINE_CALL, BUY, SELL, EAT, WORK, REQUEST_OVERTIME, TAKE_LEAVE, CANCEL_LEAVE, REST, SLEEP, WEAR, REMOVE_CLOTHING, APPLY_JOB, ACCEPT_JOB, QUIT_JOB, USE_OBJECT, TRANSFER, BOARD_BUS, WAIT_BUS, TRAVEL_BUS, CONTINUE_TRAVEL, WAIT_RAIN, PAUSE_TRAVEL, END_CHAT, RELATE, PROPOSE_PLAN, ACCEPT_PLAN, DECLINE_PLAN, CANCEL_PLAN, JOIN_PLAN, WAIT_PLAN, DO_ACTIVITY, READ_BOOK, BORROW_BOOK, RETURN_BOOK, REASON, CREATE_WORK, DECLARE_INTEREST, START_PROJECT, INVITE_PROJECT, ACCEPT_PROJECT, DECLINE_PROJECT, RESEARCH_PROJECT, BUILD_PROJECT, USE_PRODUCT, ENDORSE_BUSINESS, LAUNCH_BUSINESS, START_BUSINESS, FUND_BUSINESS, SET_PRODUCT_PRICE, PRODUCE_PRODUCT, WITHDRAW_PROFIT, START_CONSTRUCTION, BUILD_CONSTRUCTION, REPAY_LOAN, PLACE_OBJECT, MOVE_OBJECT }
     public record Credentials(@Email @NotBlank @Size(max=254) String email, @NotBlank @Size(min=12,max=128) String password) {}
     public record Registration(@NotBlank @Size(max=40) String name, @NotNull @Size(max=300) String description,
         @NotNull @Size(max=2000) String personality, @NotNull @Size(max=2000) String goals,
@@ -16,13 +16,28 @@ public class Contracts {
         @Size(max=80) String target, @Size(max=8000) String message, @Size(max=80) String item,
         @Min(0) @Max(100) Integer quantity, @Min(1) @Max(1000000) Long amount,
         @Min(3) @Max(5) @io.swagger.v3.oas.annotations.media.Schema(description="Explicit three- or five-year financing for a business or construction shortfall") Integer loanYears,
-        @Pattern(regexp="paid|self") @io.swagger.v3.oas.annotations.media.Schema(allowableValues={"paid","self"},description="Paid workers or unpaid sponsor labor for START_CONSTRUCTION") String laborMode) {
+        @Pattern(regexp="paid|self") @io.swagger.v3.oas.annotations.media.Schema(allowableValues={"paid","self"},description="Paid workers or unpaid sponsor labor for START_CONSTRUCTION") String laborMode,
+        @Valid SharedPlanInput sharedPlan) {
+        public Command(String requestId,ActionType action,String target,String message,String item,Integer quantity,Long amount,Integer loanYears,String laborMode) {
+            this(requestId,action,target,message,item,quantity,amount,loanYears,laborMode,null);
+        }
         public Command(String requestId,ActionType action,String target,String message,String item,Integer quantity,Long amount) {
             this(requestId,action,target,message,item,quantity,amount,null,null);
         }
         @AssertTrue @com.fasterxml.jackson.annotation.JsonIgnore
         public boolean isLoanTermValid() {return loanYears==null||loanYears==3||loanYears==5;}
     }
+    public record PlanTaskInput(@NotBlank @Size(max=80) String resident,@NotBlank @Size(max=80) String destination,
+        @NotBlank @Size(max=1000) String activity,@Min(1) @Max(100) Integer durationMinutes,
+        ActionType action,@Size(max=80) String target,@Size(max=80) String item) {
+        public PlanTaskInput(String resident,String destination,String activity,Integer durationMinutes) {
+            this(resident,destination,activity,durationMinutes,null,null,null);
+        }
+    }
+    public record SharedPlanInput(@NotBlank @Pattern(regexp="propose|accept|decline|cancel") String operation,
+        @Size(max=80) String plan,@Size(max=80) String destination,@Size(max=1000) String activity,
+        @Min(1) @Max(100) Integer delayMinutes,@Min(1) @Max(100) Integer durationMinutes,
+        @Size(max=2) List<@NotNull @Valid PlanTaskInput> tasks) {}
     public record Receipt(String id, String status, String result, long worldMinute) {}
     public record Pause(boolean paused) {}
     public record NightPlanInput(@NotNull @Size(max=300) String reason,@Min(0) long until) {}
@@ -42,7 +57,14 @@ public class Contracts {
     public record Relationship(@NotBlank @Size(max=80) String target, @NotBlank @Size(max=100) String label) {}
     public record PublicAgent(String id, String name, String description, String home, String occupation,
         String location, double x, double z, String activity, String status, boolean fixture,boolean raincoatWorn,Integer seatIndex,
-        String vehicleId,List<world.earth35.world.Traffic.Pose> motion,Double facingHeading,long facingUntil) {
+        String vehicleId,List<world.earth35.world.Traffic.Pose> motion,Double facingHeading,long facingUntil,
+        world.earth35.world.ActivityExecution.View activityProgress,world.earth35.world.ActionPerformance.View performance) {
+        public PublicAgent(String id,String name,String description,String home,String occupation,String location,double x,double z,String activity,String status,boolean fixture,boolean raincoatWorn,Integer seatIndex,String vehicleId,List<world.earth35.world.Traffic.Pose> motion,Double facingHeading,long facingUntil,world.earth35.world.ActivityExecution.View activityProgress) {
+            this(id,name,description,home,occupation,location,x,z,activity,status,fixture,raincoatWorn,seatIndex,vehicleId,motion,facingHeading,facingUntil,activityProgress,null);
+        }
+        public PublicAgent(String id,String name,String description,String home,String occupation,String location,double x,double z,String activity,String status,boolean fixture,boolean raincoatWorn,Integer seatIndex,String vehicleId,List<world.earth35.world.Traffic.Pose> motion,Double facingHeading,long facingUntil) {
+            this(id,name,description,home,occupation,location,x,z,activity,status,fixture,raincoatWorn,seatIndex,vehicleId,motion,facingHeading,facingUntil,null);
+        }
         public PublicAgent(String id,String name,String description,String home,String occupation,String location,double x,double z,String activity,String status,boolean fixture,boolean raincoatWorn,Integer seatIndex,String vehicleId,List<world.earth35.world.Traffic.Pose> motion) {
             this(id,name,description,home,occupation,location,x,z,activity,status,fixture,raincoatWorn,seatIndex,vehicleId,motion,null,0);
         }
@@ -64,7 +86,10 @@ public class Contracts {
     }
     public record RoutineInput(@Min(0) @Max(1439) int wakeMinute,@Min(0) @Max(1439) int sleepMinute,
         @NotNull @Pattern(regexp="breakfast|jogging|reading|meditation") String morningActivity) {}
-    public record StateBuilding(String id,String name,String type,String district,double x,double z,int capacity,String description,boolean social,boolean restAllowed,Map<String,String> objects,world.earth35.world.Places.Entrance entrance,world.earth35.world.Places.Hours hours,double outdoorRadius,String plannedType) {
+    public record StateBuilding(String id,String name,String type,String district,double x,double z,int capacity,String description,boolean social,boolean restAllowed,Map<String,String> objects,world.earth35.world.Places.Entrance entrance,world.earth35.world.Places.Hours hours,double outdoorRadius,String plannedType,List<world.earth35.world.Workspaces.Station> workspaces) {
+        public StateBuilding(String id,String name,String type,String district,double x,double z,int capacity,String description,boolean social,boolean restAllowed,Map<String,String> objects,world.earth35.world.Places.Entrance entrance,world.earth35.world.Places.Hours hours,double outdoorRadius,String plannedType) {
+            this(id,name,type,district,x,z,capacity,description,social,restAllowed,objects,entrance,hours,outdoorRadius,plannedType,List.of());
+        }
         public StateBuilding(String id,String name,String type,String district,double x,double z,int capacity,String description,boolean social,boolean restAllowed,Map<String,String> objects,world.earth35.world.Places.Entrance entrance,world.earth35.world.Places.Hours hours) {
             this(id,name,type,district,x,z,capacity,description,social,restAllowed,objects,entrance,hours,0,null);
         }

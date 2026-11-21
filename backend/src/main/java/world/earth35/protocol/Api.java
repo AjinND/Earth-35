@@ -43,6 +43,7 @@ public class Api {
     @GetMapping("/agent/observe") public AgentService.Observation observe(HttpServletRequest req,@RequestParam(defaultValue="0") long after) {return agents.observe(identity.agent(req),Math.max(0,after));}
     @PostMapping("/agent/action") public Receipt action(HttpServletRequest req,@Valid @RequestBody Command input) {return agents.action(identity.agent(req),input);}
     @PutMapping("/agent/routine") public Map<String,Boolean> routine(HttpServletRequest req,@Valid @RequestBody RoutineInput input) {agents.planRoutine(identity.agent(req),input);return Map.of("ok",true);}
+    @PutMapping("/agent/cognition") public Map<String,Boolean> cognition(HttpServletRequest req,@RequestBody world.earth35.world.Cognition.Update input) {agents.cognition(identity.agent(req),input);return Map.of("ok",true);}
     @PutMapping("/agent/night-plan") public Map<String,Boolean> nightPlan(HttpServletRequest req,@Valid @RequestBody NightPlanInput input) {agents.planNight(identity.agent(req),input);return Map.of("ok",true);}
     @PostMapping("/agent/night-routine") public NightRoutineResult nightRoutine(HttpServletRequest req,@Valid @RequestBody NightRoutineRequest input) {return new NightRoutineResult(agents.nightRoutine(identity.agent(req),input.requestId()));}
     @GetMapping("/agent/actions/{id}") public Receipt result(HttpServletRequest req,@PathVariable String id) {return agents.result(identity.agent(req),id);}

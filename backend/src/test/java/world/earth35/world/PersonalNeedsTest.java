@@ -158,18 +158,25 @@ class PersonalNeedsTest {
         act(s,a,ActionType.SLEEP,null,null,null);assertEquals(2220,a.pending.until);assertTrue(a.pending.until>1800);
         while(a.pending!=null)Engine.tick(s);assertEquals(2220,a.lastWakeMinute);assertEquals(100,a.energy);assertEquals(0,a.sleepDebtMinutes);
     }
-    @Test void shortNightCreatesSleepDebtAndDaytimeFatigueCanTriggerRecovery() {
+    @Test void shortNightCreatesSleepDebtAndDaytimeRecoveryRemainsAChosenAction() {
         State s=State.seed();s.minute=1680;Resident a=resident(s,"apt-101");a.routine=new DailyRoutine();a.routine.wakeMinute=360;a.routine.sleepMinute=1320;
         act(s,a,ActionType.SLEEP,null,null,2);while(a.pending!=null)Engine.tick(s);
         assertEquals(360,a.sleepDebtMinutes);assertEquals(1800,a.lastWakeMinute);
-        a.energy=15;s.minute=2000;assertTrue(DailyRoutines.needsSleep(a,s.minute));assertEquals(ActionType.SLEEP,NightRoutine.defaultAction(s,a,"recovery").action());
+        a.energy=15;s.minute=2000;assertTrue(DailyRoutines.needsSleep(a,s.minute));
+        assertNull(NightRoutine.defaultAction(s,a,"recovery"));assertNull(a.pending);
+        act(s,a,ActionType.SLEEP,null,null,null);assertEquals("SLEEP",a.pending.type);assertEquals(2600,a.pending.until);
     }
-    @Test void nightPlansAndExplicitRestRemainChoicesForTiredResidents() {
+    @Test void nightRestAndRecoveryRemainChoicesWithOrWithoutADeclaredPlan() {
         State s=State.seed();s.minute=1400;Resident a=resident(s,"park");a.energy=40;a.nightPlan=new NightPlan("Watch the stars",1800);
         assertNull(NightRoutine.defaultAction(s,a,"sleep"));
         var rest=command(ActionType.REST,null,null,null);assertSame(rest,NightRoutine.resolve(s,a,rest));
         a.nightPlan=null;a.energy=100;assertNull(NightRoutine.defaultAction(s,a,"rested"));
-        a.lastWakeMinute=400;assertNotNull(NightRoutine.defaultAction(s,a,"long-day"));
+        assertSame(rest,NightRoutine.resolve(s,a,rest));act(s,a,ActionType.REST,null,null,null);
+        assertEquals("REST",a.pending.type);assertEquals("park",a.location);a.pending=null;
+        a.location=a.home;assertNull(NightRoutine.defaultAction(s,a,"rested-at-home"));
+        a.lastWakeMinute=400;assertTrue(DailyRoutines.needsSleep(a,s.minute));
+        assertNull(NightRoutine.defaultAction(s,a,"long-day"));assertNull(a.pending);
+        act(s,a,ActionType.SLEEP,null,null,null);assertEquals("SLEEP",a.pending.type);
     }
     @Test void recoverySleepIsBoundedWithoutRoutineHungerWakeups() {
         State s=State.seed();s.minute=720;Resident a=resident(s,"apt-101");a.energy=0;a.sleepDebtMinutes=1440;a.wetness=100;
@@ -177,7 +184,7 @@ class PersonalNeedsTest {
         assertThrows(Engine.Invalid.class,()->DailyRoutines.sleepUntil(a,s.minute,11));
         a.hunger=97;for(int i=0;i<120;i++)Engine.tick(s);assertNotNull(a.pending);
     }
-    @Test void hungerWakeEatsAtHomeAndResumesOriginalSleepWithoutAnotherInterruption() {
+    @Test void aResidentCanChooseFoodAfterAHungerWakeAndResumeTheOriginalSleep() {
         State s=State.seed();s.minute=1320;Resident a=resident(s,"apt-101");
         a.routine=new DailyRoutine();a.routine.sleepMinute=1320;a.routine.wakeMinute=360;
         a.energy=25;a.hunger=97;a.lastMealMinute=600;
@@ -186,22 +193,24 @@ class PersonalNeedsTest {
         assertTrue(s.minute<1440);assertTrue(a.hungerWakeNeedsFood);
         assertTrue(wake.facts.stream().anyMatch(f->f.message().contains("because of severe hunger")));
         assertThrows(Engine.Invalid.class,()->act(s,a,ActionType.SLEEP,null,null,8));
-        Command snack=NightRoutine.defaultAction(s,a,"snack");assertEquals(ActionType.EAT,snack.action());
+        assertNull(NightRoutine.defaultAction(s,a,"snack"));assertNull(a.pending);
+        Command snack=command(ActionType.EAT,null,"meal",null);
         int meals=a.inventory.get("meal");Engine.apply(s,a,snack,"snack",new Engine.Effects());
         assertEquals(meals-1,a.inventory.get("meal"));assertEquals(s.minute,a.lastMealMinute);
         assertFalse(a.hungerWakeNeedsFood);assertEquals(a.home,a.location);
-        a.energy=100;assertEquals(ActionType.SLEEP,NightRoutine.defaultAction(s,a,"resume").action());
+        a.energy=100;assertNull(NightRoutine.defaultAction(s,a,"resume"));assertNull(a.pending);
         act(s,a,ActionType.SLEEP,null,null,null);assertEquals(1800,a.pending.until);
         a.hunger=100;while(s.minute<1799)Engine.tick(s);assertNotNull(a.pending);
         Engine.tick(s);assertNull(a.pending);assertEquals(1800,a.lastWakeMinute);
         assertEquals(0,a.sleepDebtMinutes);
     }
-    @Test void severeHungerBlocksBothDefaultSleepAndExplicitNapsAtTheBoundary() {
+    @Test void severeHungerBlocksSleepAndOwnedFoodCanBeChosenAtTheBoundary() {
         State s=State.seed();s.minute=720;Resident a=resident(s,"apt-101");a.energy=0;a.hunger=98;
-        assertNull(NightRoutine.defaultAction(s,a,"hungry"));
+        assertNull(NightRoutine.defaultAction(s,a,"hungry"));int meals=a.inventory.get("meal");
         for(Integer hours:Arrays.asList(null,1,10))
             assertThrows(Engine.Invalid.class,()->act(s,a,ActionType.SLEEP,null,null,hours));
         assertNull(a.pending);
+        act(s,a,ActionType.EAT,null,"meal",null);assertEquals(meals-1,a.inventory.get("meal"));assertEquals(53,a.hunger);
         a.hunger=97.9;assertDoesNotThrow(()->act(s,a,ActionType.SLEEP,null,null,null));assertNotNull(a.pending);
     }
 }

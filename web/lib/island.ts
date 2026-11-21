@@ -1,5 +1,6 @@
 // Deterministic island geometry; the server owns the occupied city layout.
 import {RIVER,nearestRiver} from "./river";
+import {segmentIndex} from "./segment-index";
 import {LAKE,LANDSCAPES,lakeRadius,FALLS,poolRadius,coastalWeight,BRIDGE_RAMP_LENGTH,type LandscapeBridge} from "./landscapes";
 export type IslandPoint = {x:number;z:number};
 export const METERS_PER_MAP_UNIT = 10;
@@ -38,23 +39,25 @@ export const ISLAND_BOUNDS={
   minX:Math.min(...COASTLINE.map(p=>p.x)),maxX:Math.max(...COASTLINE.map(p=>p.x)),
   minZ:Math.min(...COASTLINE.map(p=>p.z)),maxZ:Math.max(...COASTLINE.map(p=>p.z)),
 };
+// A horizontal ray can only cross edges in its latitude band. Retain the
+// original crossing test so points on the shoreline keep identical semantics.
+const coastBands=Array.from({length:64},(_,band)=>{
+  const low=ISLAND_BOUNDS.minZ+(ISLAND_BOUNDS.maxZ-ISLAND_BOUNDS.minZ)*band/64;
+  const high=ISLAND_BOUNDS.minZ+(ISLAND_BOUNDS.maxZ-ISLAND_BOUNDS.minZ)*(band+1)/64;
+  return COASTLINE.map((a,i)=>({a,b:COASTLINE[(i+COASTLINE.length-1)%COASTLINE.length]}))
+    .filter(({a,b})=>Math.min(a.z,b.z)<=high&&Math.max(a.z,b.z)>=low);
+});
 export function onIsland({x,z}:IslandPoint) {
+  if(!(x>=ISLAND_BOUNDS.minX&&x<=ISLAND_BOUNDS.maxX&&z>=ISLAND_BOUNDS.minZ&&z<=ISLAND_BOUNDS.maxZ))return false;
+  const band=Math.min(63,Math.floor((z-ISLAND_BOUNDS.minZ)/(ISLAND_BOUNDS.maxZ-ISLAND_BOUNDS.minZ)*64));
   let inside=false;
-  for(let i=0,j=COASTLINE.length-1;i<COASTLINE.length;j=i++) {
-    const a=COASTLINE[i],b=COASTLINE[j];
+  for(const {a,b} of coastBands[band]) {
     if((a.z>z)!==(b.z>z)&&x<(b.x-a.x)*(z-a.z)/(b.z-a.z)+a.x)inside=!inside;
   }
   return inside;
 }
-export function coastDistance({x,z}:IslandPoint) {
-  let nearest=Infinity;
-  for(let i=0;i<COASTLINE.length;i++) {
-    const a=COASTLINE[i],b=COASTLINE[(i+1)%COASTLINE.length],dx=b.x-a.x,dz=b.z-a.z;
-    const t=Math.max(0,Math.min(1,((x-a.x)*dx+(z-a.z)*dz)/(dx*dx+dz*dz)));
-    nearest=Math.min(nearest,Math.hypot(x-a.x-dx*t,z-a.z-dz*t));
-  }
-  return nearest;
-}
+const nearestCoast=segmentIndex([[...COASTLINE,COASTLINE[0]]]);
+export function coastDistance({x,z}:IslandPoint) {return nearestCoast(x,z).distance;}
 export function naturalElevation(x:number,z:number) {
   // Keep every existing street, entrance and scenic approach on its original ground.
   const settlement=Math.max(Math.abs(x+150)-288,Math.abs(z)-288,0);

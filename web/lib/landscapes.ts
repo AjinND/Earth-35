@@ -1,6 +1,7 @@
 import specification from "./island-landscapes.json";
 import type {IslandPoint} from "./island";
 import {nearestRiver,RIVER} from "./river";
+import {segmentIndex} from "./segment-index";
 
 // The same versioned specification is loaded by IslandLandscapes on the server.
 export const LANDSCAPES=specification;
@@ -51,12 +52,5 @@ export function landscapeClear(x:number,z:number) {
   const river=nearestRiver(x,z),position=river.index+river.fraction;
   return !(position>=LANDSCAPES.lakeRiverEnd&&position<LANDSCAPES.cliffRiverEnd&&river.distance<river.width/2+4.5);
 }
-export function trailDistance(x:number,z:number) {
-  let distance=Infinity;
-  for(const trail of ALL_TRAILS)for(let i=1;i<trail.length;i++) {
-    const a=trail[i-1],b=trail[i],dx=b.x-a.x,dz=b.z-a.z;
-    const t=Math.max(0,Math.min(1,((x-a.x)*dx+(z-a.z)*dz)/(dx*dx+dz*dz)));
-    distance=Math.min(distance,Math.hypot(x-a.x-t*dx,z-a.z-t*dz));
-  }
-  return distance;
-}
+const trailIndex=segmentIndex(ALL_TRAILS);
+export function trailDistance(x:number,z:number) {return trailIndex(x,z).distance;}

@@ -29,11 +29,14 @@ class BuildingEntryTest {
             Engine.tick(s);assertEquals(b.z,a.z,.000001);
         }
     }
-    @Test void aClosingVenueRejectsAtTheDoorButDoesNotEvictAnAlreadyAdmittedResident() {
+    @Test void aClosingVenueRejectsAtTheDoorAndDuringTheIndoorEntryLeg() {
         State s=State.seed();s.minute=1198;Resident a=resident(s,"park");var b=s.buildings.get("coffee");var door=Places.entrance(b);
         a.location="road";a.x=door.x()-1;a.z=door.z();move(s,a,ActionType.MOVE,b.id);Engine.tick(s);
-        assertTrue(a.pending.entering);Engine.tick(s);assertEquals(b.id,a.location);assertTrue(Travel.sheltered(s,a));
-        Engine.tick(s);assertNull(a.pending);assertEquals(b.z,a.z,.000001);
+        assertTrue(a.pending.entering);var interrupted=Engine.tick(s);
+        assertNull(a.pending);assertEquals("road",a.location);assertFalse(Travel.sheltered(s,a));
+        assertEquals(door.x(),a.x,.000001);assertEquals(door.z(),a.z,.000001);
+        assertEquals("rejected",interrupted.completions.getFirst().status());
+        assertTrue(Engine.tick(s).completions.isEmpty());assertEquals(door.z(),a.z,.000001);
         Resident late=resident(s,"park");late.location="road";late.x=door.x();late.z=door.z();
         late.pending=Engine.pending("late","MOVE",b.id,0);late.pending.frontDoorRoute=true;
         var rejection=Engine.tick(s);assertEquals("road",late.location);assertNull(late.pending);assertEquals(door.z(),late.z,.000001);

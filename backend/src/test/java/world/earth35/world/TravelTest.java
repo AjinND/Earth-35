@@ -97,7 +97,8 @@ class TravelTest {
         s.minute=570;a.job="job-office";assertEquals(-30,Travel.situation(s,a).minutesUntilShift());
         Engine.apply(s,a,command(ActionType.MOVE,"office","north-south-first"),"walk",new Engine.Effects());assertEquals("MOVE",a.pending.type);
         a.workDay=0;a.workedMinutes=60;assertNull(Travel.situation(s,a).minutesUntilShift());
-        a.workedMinutes=0;s.minute=990;assertEquals(1980L,Travel.situation(s,a).shiftStart());
+        a.workedMinutes=0;s.minute=990;assertEquals(540L,Travel.situation(s,a).shiftStart());
+        s.minute=1020;assertEquals(1980L,Travel.situation(s,a).shiftStart());
     }
     @Test void alternativesExposeLandmarksAndStopsClearBothRoads() {
         State s=State.seed();Resident a=resident(s,"a","apt-101");

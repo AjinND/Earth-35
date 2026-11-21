@@ -28,6 +28,19 @@ public class AgentService {
             this(minute,version,weather,time,night,morning,self,nearby,locations,jobs,events,actions,objects,gathering,transport,conversations,contacts,work,travel,social,economy,library,geography,null);
         }
         public DailyRoutines.SleepNeeds getSleep() {return DailyRoutines.sleepNeeds(self,worldMinute);}
+        public boolean getNightReturnDue() {
+            return NightRoutine.returnHomeDue(self,worldMinute,social==null?List.of():social.plans())
+                &&locations.stream().anyMatch(b->b.id.equals(self.home));
+        }
+        public DecisionAwareness.View getAwareness() {return DecisionAwareness.view(this);}
+        public Cognition.View getCognition() {return Cognition.view(self,worldMinute);}
+        public List<Relationships.View> getRelationships() {return Relationships.views(self,worldMinute,nearby.stream().map(PublicAgent::id).collect(java.util.stream.Collectors.toSet()));}
+        public ActionPerformance.View getPerformance() {return ActionPerformance.view(self);}
+        public List<Workspaces.Station> getWorkspaces() {
+            return locations.stream().filter(b->b.id.equals(self.location)).findFirst().map(Workspaces::stations).orElse(List.of());
+        }
+        public DailyLifeContext.View getDailyLife() {return DailyLifeContext.view(this);}
+        public List<WorkPayroll.Due> getPayroll() {return WorkPayroll.view(self);}
         public DailyRoutines.Supplies getSupplies() {return DailyRoutines.supplies(self);}
         public IslandGeography.Exploration getExploration() {return geography.version()>=2?IslandGeography.exploration():null;}
         public Seating.View getSeating() {
@@ -100,13 +113,14 @@ public class AgentService {
         store.db.update("UPDATE agent_credentials SET token_hash=? WHERE agent_id=?",token==null?null:Identity.hash(token),id);return token;
     }
     @Transactional public Observation observe(String id,long after) {
-        State s=store.read(true);Resident a=s.agents.get(id);a.lastSeen=System.currentTimeMillis();store.save(s);
+        State s=store.read(true);Resident a=s.agents.get(id);a.lastSeen=System.currentTimeMillis();
         Map<String,Boolean> availability=availability(s);
+        Cognition.perceive(s,a,availability);store.save(s);
         return new Observation(s.minute,s.version,Engine.weather(s.minute),NightRoutine.timeOfDay(s.minute),DailyRoutines.sleepingTime(a,s.minute),DailyRoutines.nextWake(a,s.minute),a,
             s.agents.values().stream().filter(b->!b.id.equals(id)&&Social.perceivable(s,a,b)&&Math.hypot(a.x-b.x,a.z-b.z)<=20).map(WorldStore::publicAgent).toList(),
             s.buildings.values().stream().filter(b->b.capacity>1||b.id.equals(a.home)).toList(),new ArrayList<>(s.jobs.values()),store.events(after,100,id),List.of(ActionType.values()),
             s.buildings.values().stream().flatMap(b->b.objects.keySet().stream()).toList(),gatheringPlaces(s),Traffic.observation(s,a),Conversations.views(s,a,availability),
-            s.agents.values().stream().filter(b->!b.id.equals(id)&&Social.perceivable(s,a,b)&&Math.hypot(a.x-b.x,a.z-b.z)<=20).map(b->new Contact(b.id,availability.get(b.id))).toList(),DailyRoutines.schedule(s,a),Travel.situation(s,a),Social.situation(s,a,availability),Economy.summary(s),Library.view(s,a),CityLayout.of(s),Projects.view(s,a),Livelihood.view(s,a),WorldObjects.observation(s));
+            s.agents.values().stream().filter(b->!b.id.equals(id)&&Social.perceivable(s,a,b)&&Math.hypot(a.x-b.x,a.z-b.z)<=20).map(b->new Contact(b.id,availability.get(b.id)&&Social.conversationAvailable(b))).toList(),DailyRoutines.schedule(s,a),Travel.situation(s,a),Social.situation(s,a,availability),Economy.summary(s),Library.view(s,a),CityLayout.of(s),Projects.view(s,a),Livelihood.view(s,a),WorldObjects.observation(s));
     }
     private Map<String,Boolean> availability(State s) {
         Map<String,String> hosted=new HashMap<>();
@@ -139,35 +153,44 @@ public class AgentService {
         return hostedAction(id,proposed,plan,null);
     }
     @Transactional public Receipt hostedAction(String id,Command proposed,NightPlanInput plan,RoutineInput routine) {
+        return hostedAction(id,proposed,plan,routine,null);
+    }
+    @Transactional public Receipt hostedAction(String id,Command proposed,NightPlanInput plan,RoutineInput routine,Cognition.Update cognition) {
         State s=store.read(true);Resident a=s.agents.get(id);
         String notes="";
+        try {if(cognition!=null)Cognition.update(s,a,cognition);}
+        catch(Engine.Invalid e) {notes+=" Cognition update ignored: "+e.getMessage()+".";}
         try {if(routine!=null)setRoutine(a,routine);}
         catch(org.springframework.web.server.ResponseStatusException e) {notes+=" Routine change ignored: "+e.getReason()+".";}
         try {if(plan!=null) setNightPlan(s,a,plan);}
         catch(org.springframework.web.server.ResponseStatusException e) {notes+=" Night plan ignored: "+e.getReason()+".";}
-        Command resolved=NightRoutine.resolve(s,a,proposed);
-        if(resolved!=proposed) a.bedtimeRoutine=true;
-        return recordAction(s,id,resolved,notes);
+        return recordAction(s,id,proposed,notes);
     }
     @Transactional public Receipt nightRoutine(String id) {
         return nightRoutine(id,UUID.randomUUID().toString());
     }
     @Transactional public Receipt nightRoutine(String id,String requestId) {
         State s=store.read(true);Resident a=s.agents.get(id);
-        var previous=store.db.queryForList("SELECT *, command->>'action' AS routine_action, command->>'target' AS routine_target FROM agent_actions WHERE agent_id=? AND request_id=?",id,requestId);
+        var previous=store.db.queryForList("SELECT *, command->>'action' AS routine_action, command->>'target' AS routine_target, command->>'item' AS routine_item FROM agent_actions WHERE agent_id=? AND request_id=?",id,requestId);
         if(!previous.isEmpty()) {
             var row=previous.getFirst();
-            if(!"SLEEP".equals(row.get("routine_action"))&&!("MOVE".equals(row.get("routine_action"))&&a.home.equals(row.get("routine_target"))))
+            boolean snack="EAT".equals(row.get("routine_action"))&&List.of("meal","coffee").contains(row.get("routine_item"));
+            if(!snack&&!"SLEEP".equals(row.get("routine_action"))&&!("MOVE".equals(row.get("routine_action"))&&a.home.equals(row.get("routine_target"))))
                 throw Identity.error(HttpStatus.CONFLICT,"Request ID was already used for a different command");
             return receipt(row);
         }
-        Command command=NightRoutine.defaultAction(s,a,requestId);
-        if(command==null) return null;
-        a.bedtimeRoutine=true;
-        return recordAction(s,id,command);
+        // Older runtimes may still call this endpoint. Preserve historical retries,
+        // but a preferred bedtime no longer authors a new decision for the resident.
+        return null;
     }
     @Transactional public void planNight(String id,NightPlanInput input) {
         State s=store.read(true);setNightPlan(s,s.agents.get(id),input);store.save(s);
+    }
+    @Transactional public void cognition(String id,Cognition.Update input) {
+        State s=store.read(true);
+        try {Cognition.update(s,s.agents.get(id),input);}
+        catch(Engine.Invalid e) {throw Identity.error(HttpStatus.BAD_REQUEST,e.getMessage());}
+        store.save(s);
     }
     private void setNightPlan(State s,Resident a,NightPlanInput input) {
         if(a.paused||a.pending!=null) throw Identity.error(HttpStatus.CONFLICT,"Wait until the current action finishes before changing a night plan");
@@ -192,11 +215,22 @@ public class AgentService {
         Resident a=s.agents.get(id);String actionId=UUID.randomUUID().toString();Engine.Effects effects=new Engine.Effects();
         String result,status;
         try {
-            if(List.of(ActionType.TALK,ActionType.CALL_OUT,ActionType.PAUSE_TRAVEL,ActionType.PROPOSE_PLAN).contains(input.action())&&!Boolean.TRUE.equals(availability(s).get(input.target())))throw new Engine.Invalid("This resident is unavailable for conversation; no reply has been received. Choose another activity");
+            if(input.sharedPlan()!=null) {
+                if(input.action()!=ActionType.TALK&&input.action()!=ActionType.END_CHAT)
+                    throw new Engine.Invalid("Attach a shared agreement to your own TALK or END_CHAT turn");
+                ConversationPlans.validate(s,a,input.target(),input.sharedPlan());
+            }
+            if(List.of(ActionType.TALK,ActionType.PAUSE_TRAVEL,ActionType.PROPOSE_PLAN).contains(input.action())&&!Boolean.TRUE.equals(availability(s).get(input.target())))throw new Engine.Invalid("This resident is unavailable for conversation; no reply has been received. Choose another activity");
+            if(input.action()==ActionType.CALL_OUT) {
+                Resident listener=s.agents.get(input.target());
+                if(listener==null||listener.paused||!ActionPerformance.awake(listener)||System.currentTimeMillis()-listener.lastSeen>=45000)
+                    throw new Engine.Invalid("This resident cannot currently hear a public call");
+            }
             result=Engine.apply(s,a,input,actionId,effects);status=a.pending!=null&&actionId.equals(a.pending.id)?"accepted":"completed";
         }
         catch(Engine.Invalid e) { result=e.getMessage();status="rejected"; }
         result+=notes;
+        Cognition.action(a,s.minute,actionId,input.action().name(),input.target(),status,result);
         store.db.update("INSERT INTO agent_actions VALUES(?,?,?,?::jsonb,?,?,?)",actionId,id,input.requestId(),store.encode(input),status,result,s.minute);
         store.effects(s,effects);store.save(s);return new Receipt(actionId,status,result,s.minute);
     }
@@ -208,9 +242,9 @@ public class AgentService {
     public void usage(String id,Usage usage) { store.db.update("INSERT INTO runtime_usage VALUES(?,?,?) ON CONFLICT DO NOTHING",id,usage.requestId(),usage.tokens()); }
     @Transactional public void relationship(String id,Relationship input) {
         State s=store.read(true);Resident a=s.agents.get(id);
-        if(!s.agents.containsKey(input.target())||id.equals(input.target())) throw Identity.error(HttpStatus.BAD_REQUEST,"Unknown other agent");
-        if(store.events(0,1,id).isEmpty()) throw Identity.error(HttpStatus.BAD_REQUEST,"No recorded experience yet");
-        a.relationships.put(input.target(),input.label());store.save(s);
+        try {Relationships.label(s,a,input.target(),input.label());}
+        catch(Engine.Invalid e) {throw Identity.error(HttpStatus.BAD_REQUEST,e.getMessage());}
+        store.save(s);
     }
 }
 

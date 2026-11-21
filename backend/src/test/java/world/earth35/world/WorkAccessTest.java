@@ -32,7 +32,8 @@ class WorkAccessTest {
         act(s,a,ActionType.MOVE,"office",null,"commute");while(a.pending!=null)Engine.tick(s);
         assertEquals("office",a.location);
         act(s,a,ActionType.WORK,null,"overtime","early");assertEquals(3000,s.accounts.get("escrow:early"));
-        while(a.pending!=null)Engine.tick(s);assertEquals(money+3000,a.money);
+        while(a.pending!=null)Engine.tick(s);assertEquals(money,a.money);
+        while(s.minute<1020)Engine.tick(s);assertEquals(money+3000,a.money);
     }
     @Test void permissionDoesNotEnableClosedShopPurchases() {
         State s=State.seed();s.minute=300;Resident a=resident(s,"barista","coffee");a.job="job-coffee";

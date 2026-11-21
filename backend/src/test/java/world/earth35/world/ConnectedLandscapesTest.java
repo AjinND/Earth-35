@@ -99,7 +99,7 @@ class ConnectedLandscapesTest {
         assertTrue(rejected.getMessage().contains("trail"));assertEquals(money,a.money);assertEquals(accounts,s.accounts);assertNull(a.pending);assertTrue(s.worldObjects.isEmpty());
         double clearX=x+nx*5,clearZ=z+nz*5;a.x=clearX+nx*3;a.z=clearZ+nz*3;a.location="road";
         WorldObjects.place(s,a,"point:"+clearX+","+clearZ,"signboard","Beside the ridge trail","clear-sign",new Engine.Effects());
-        for(int minute=0;minute<15;minute++)Engine.tick(s);
+        for(int minute=0;minute<35&&a.pending!=null;minute++)Engine.tick(s);
         assertNull(a.pending);assertNotNull(s.worldObjects.get("object:clear-sign"));assertEquals(money-WorldObjects.COST_CENTS,a.money);
     }
     @Test void newConstructionCannotBlockAMarkedTrailButNearbyWildernessRemainsBuildable() {

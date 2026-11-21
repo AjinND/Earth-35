@@ -62,7 +62,9 @@ public final class Travel {
         Building source=source(s,a);
         if(Places.enclosed(source)) {
             var door=Places.entrance(source);
-            exit.add(new double[]{door.x(),a.z});exit.add(new double[]{door.x(),door.z()});start.x=door.x();start.z=door.z();
+            if(ConstructionWork.exitingSite(s,a)!=null)exit.addAll(ConstructionWork.exitRoute(s,a,source));
+            else {var workspaceExit=Workspaces.exitRoute(s,a,source);if(workspaceExit!=null)exit.addAll(workspaceExit);else {exit.add(new double[]{door.x(),a.z});exit.add(new double[]{door.x(),door.z()});}}
+            start.x=door.x();start.z=door.z();
         }
         if(choice.equals("shortest")) {
             var east=path(s,a,b,"east-west-first");var north=path(s,a,b,"north-south-first");
@@ -203,7 +205,7 @@ public final class Travel {
         Job job=s.jobs.get(a.job);Long start=null;Integer remaining=null;
         if(job!=null&&!DailyRoutines.onLeave(a,s.minute)&&(a.workDay!=Math.floorDiv(s.minute,1440)||a.workedMinutes==0)) {
             long day=Math.floorDiv(s.minute,1440);
-            if(job.workDays.contains((int)Math.floorMod(day,7))&&Math.floorMod(s.minute,1440)+60<=job.endMinute)start=day*1440+job.startMinute;
+            if(job.workDays.contains((int)Math.floorMod(day,7))&&Math.floorMod(s.minute,1440)<job.endMinute)start=day*1440+job.startMinute;
             else start=DailyRoutines.nextShift(job,s.minute);
             remaining=(int)(start-s.minute);
         }
@@ -268,7 +270,7 @@ public final class Travel {
         // Internal continuation of an accepted itinerary. Discover a closure at
         // the venue entrance, not remotely when stepping off the bus.
         Pending p=Engine.pending(actionId,"MOVE",target,0);p.routeChoice=defaultRoute(a);
-        Building endpoint=boardingRoute==null?s.buildings.get(target):Traffic.platformBuilding(s,target,boardingRoute);
+        Building endpoint=boardingRoute==null?destination(s,target):Traffic.platformBuilding(s,target,boardingRoute);
         p.route.addAll(path(s,a,endpoint,p.routeChoice));p.frontDoorRoute=true;p.finalDestination=finalDestination;p.boardingRoute=boardingRoute;p.alightingStop=alightingStop;
         p.exitDoor=exitDoor(s,a);a.pending=p;a.location="road";reviewed(s,a);
     }
@@ -286,18 +288,19 @@ public final class Travel {
     }
     static void walkingArrived(State s,Resident a,Engine.Effects effects) {
         Pending p=a.pending;Building destination=walkingDestination(s,p);
+        if(!Places.canEnter(s,a,destination,s.minute)) {
+            var door=Places.entrance(destination);a.x=door.x();a.z=door.z();
+            a.location="road";effects.completions.add(new Engine.Completion(p.id,"rejected",destination.name+" closed during the journey; you remain outside its front entrance"));a.pending=null;return;
+        }
         if(p.entering) {
             a.x=destination.x;a.z=destination.z;a.location=p.target;
             Engine.finish(a,effects,"Arrived inside "+destination.name);return;
         }
         var door=Places.entrance(destination);a.x=door.x();a.z=door.z();
-        if(!Places.canEnter(s,a,destination,s.minute)) {
-            a.location="road";effects.completions.add(new Engine.Completion(p.id,"rejected",destination.name+" closed during the journey; you remain outside its front entrance"));a.pending=null;return;
-        }
         if(Places.enclosed(destination)) {
             // Admission is checked at the door. Complete the indoor leg on
             // later ticks so both entry and exit are visibly through this door.
-            p.entering=true;p.route.add(new double[]{destination.x,destination.z});return;
+            p.entering=true;p.route.addAll(Workspaces.entryRoute(s,a,destination));return;
         }
         a.location=p.target;
         if(p.finalDestination!=null&&p.boardingRoute!=null) {

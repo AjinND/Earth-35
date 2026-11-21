@@ -4,7 +4,7 @@ import {useFrame} from "@react-three/fiber";
 import {Html} from "@react-three/drei";
 import * as THREE from "three";
 import type {Building} from "@/lib/types";
-import {gatheringBenches} from "@/lib/gathering-furniture";
+import {gatheringBenches,gatheringDecorationClear} from "@/lib/gathering-furniture";
 import {riverBounds,riverOffset} from "@/lib/scenic-layout";
 import {clearsRoad,prototypeLayout,type CityLayout} from "@/lib/city-layout";
 import OrganicRiver from "./OrganicRiver";
@@ -121,7 +121,7 @@ export default function ScenicDestination({building:b,selected,onSelect,showLabe
       <Pine x={-3} z={-2.6} size={.65}/><Pine x={2.7} z={-2.5} size={.75}/>
     </>}
     {trail&&<>
-      {[-1,1].flatMap(side=>[-2.8,0,2.8].map((z,i)=><Pine key={`${side}-${z}`} x={side*(3.2-i*.2)} z={z} size={.7+(i%2)*.2}/>))}
+      {[-1,1].flatMap(side=>[-2.8,0,2.8].map((z,i)=>{const x=side*(3.2-i*.2),size=.7+(i%2)*.2;return gatheringDecorationClear(b,x,z,1.35*size)?<Pine key={`${side}-${z}`} x={x} z={z} size={size}/>:null;}))}
       <Rock x={2.6} z={2.7} size={.5}/><Rock x={-2} z={-1.7} size={.35}/>
       <group name="trail-marker" position={[2.2,0,3.4]}><mesh position={[0,.9,0]}><boxGeometry args={[.14,1.8,.14]}/><meshStandardMaterial color="#765739"/></mesh><mesh position={[0,1.65,0]}><boxGeometry args={[1.4,.4,.12]}/><meshStandardMaterial color="#bb8b4f"/></mesh></group>
     </>}

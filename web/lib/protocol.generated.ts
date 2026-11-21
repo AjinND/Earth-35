@@ -84,6 +84,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/agent/cognition": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["cognition"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/owner/agents/{id}/memories/recall": {
         parameters: {
             query?: never;
@@ -440,6 +456,39 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        WorkspaceStation: {
+            id?: string;
+            kind?: string;
+            /** Format: double */
+            x?: number;
+            /** Format: double */
+            z?: number;
+            /** Format: double */
+            heading?: number;
+        };
+        Area: {
+            id?: string;
+            /** Format: double */
+            x?: number;
+            /** Format: double */
+            z?: number;
+            /** Format: double */
+            heading?: number;
+        };
+        ActionPerformance: {
+            actionId?: string;
+            action?: string;
+            phase?: string;
+            posture?: string;
+            gesture?: string;
+            heldItem?: string;
+            task?: string;
+            /** Format: double */
+            heading?: number;
+            anchored?: boolean;
+            /** Format: int32 */
+            activeMinutes?: number;
+        };
         HostedSetup: {
             provider: string;
             model: string;
@@ -463,6 +512,21 @@ export interface components {
             reason: string;
             /** Format: int64 */
             until?: number;
+        };
+        IntentionDraft: {
+            focus?: string;
+            nextStep?: string;
+            reason?: string;
+            target?: string;
+            /** Format: int32 */
+            reviewAfterMinutes?: number;
+        };
+        Update: {
+            intention?: components["schemas"]["IntentionDraft"];
+            clearIntention?: boolean;
+            feeling?: string;
+            lesson?: string;
+            outcomeId?: string;
         };
         Recall: {
             query: string;
@@ -495,6 +559,19 @@ export interface components {
             fixture?: boolean;
             hosted?: components["schemas"]["HostedSetup"];
         };
+        ActivityProgress: {
+            mode?: string;
+            phase?: string;
+            label?: string;
+            /** Format: int32 */
+            activeMinutes?: number;
+            /** Format: int32 */
+            requestedMinutes?: number;
+            /** Format: int32 */
+            inspectedStops?: number;
+            /** Format: double */
+            distance?: number;
+        };
         Pose: {
             /** Format: double */
             x?: number;
@@ -502,6 +579,8 @@ export interface components {
             z?: number;
             /** Format: double */
             heading?: number;
+            /** Format: double */
+            fraction?: number;
         };
         PublicAgent: {
             id?: string;
@@ -526,6 +605,8 @@ export interface components {
             facingHeading?: number;
             /** Format: int64 */
             facingUntil?: number;
+            activityProgress?: components["schemas"]["ActivityProgress"];
+            performance?: components["schemas"]["ActionPerformance"];
         };
         Registered: {
             agent?: components["schemas"]["PublicAgent"];
@@ -568,7 +649,7 @@ export interface components {
         Command: {
             requestId: string;
             /** @enum {string} */
-            action: "MOVE" | "RUN" | "JUMP" | "LOOK" | "TALK" | "CALL_OUT" | "ACKNOWLEDGE" | "DECLINE_CALL" | "BUY" | "SELL" | "EAT" | "WORK" | "REQUEST_OVERTIME" | "TAKE_LEAVE" | "CANCEL_LEAVE" | "REST" | "SLEEP" | "WEAR" | "REMOVE_CLOTHING" | "APPLY_JOB" | "ACCEPT_JOB" | "QUIT_JOB" | "USE_OBJECT" | "TRANSFER" | "BOARD_BUS" | "WAIT_BUS" | "TRAVEL_BUS" | "CONTINUE_TRAVEL" | "WAIT_RAIN" | "PAUSE_TRAVEL" | "END_CHAT" | "RELATE" | "PROPOSE_PLAN" | "ACCEPT_PLAN" | "DECLINE_PLAN" | "CANCEL_PLAN" | "JOIN_PLAN" | "READ_BOOK" | "BORROW_BOOK" | "RETURN_BOOK" | "REASON" | "CREATE_WORK" | "DECLARE_INTEREST" | "START_PROJECT" | "INVITE_PROJECT" | "ACCEPT_PROJECT" | "DECLINE_PROJECT" | "RESEARCH_PROJECT" | "BUILD_PROJECT" | "USE_PRODUCT" | "ENDORSE_BUSINESS" | "LAUNCH_BUSINESS" | "START_BUSINESS" | "FUND_BUSINESS" | "SET_PRODUCT_PRICE" | "PRODUCE_PRODUCT" | "WITHDRAW_PROFIT" | "START_CONSTRUCTION" | "BUILD_CONSTRUCTION" | "REPAY_LOAN" | "PLACE_OBJECT" | "MOVE_OBJECT";
+            action: "CONTINUE_ACTIVITY" | "PAUSE_ACTIVITY" | "RESUME_ACTIVITY" | "STOP_ACTIVITY" | "MOVE" | "RUN" | "JUMP" | "LOOK" | "TALK" | "CALL_OUT" | "ACKNOWLEDGE" | "DECLINE_CALL" | "BUY" | "SELL" | "EAT" | "WORK" | "REQUEST_OVERTIME" | "TAKE_LEAVE" | "CANCEL_LEAVE" | "REST" | "SLEEP" | "WEAR" | "REMOVE_CLOTHING" | "APPLY_JOB" | "ACCEPT_JOB" | "QUIT_JOB" | "USE_OBJECT" | "TRANSFER" | "BOARD_BUS" | "WAIT_BUS" | "TRAVEL_BUS" | "CONTINUE_TRAVEL" | "WAIT_RAIN" | "PAUSE_TRAVEL" | "END_CHAT" | "RELATE" | "PROPOSE_PLAN" | "ACCEPT_PLAN" | "DECLINE_PLAN" | "CANCEL_PLAN" | "JOIN_PLAN" | "WAIT_PLAN" | "DO_ACTIVITY" | "READ_BOOK" | "BORROW_BOOK" | "RETURN_BOOK" | "REASON" | "CREATE_WORK" | "DECLARE_INTEREST" | "START_PROJECT" | "INVITE_PROJECT" | "ACCEPT_PROJECT" | "DECLINE_PROJECT" | "RESEARCH_PROJECT" | "BUILD_PROJECT" | "USE_PRODUCT" | "ENDORSE_BUSINESS" | "LAUNCH_BUSINESS" | "START_BUSINESS" | "FUND_BUSINESS" | "SET_PRODUCT_PRICE" | "PRODUCE_PRODUCT" | "WITHDRAW_PROFIT" | "START_CONSTRUCTION" | "BUILD_CONSTRUCTION" | "REPAY_LOAN" | "PLACE_OBJECT" | "MOVE_OBJECT";
             target?: string;
             message?: string;
             item?: string;
@@ -579,14 +660,36 @@ export interface components {
             /**
              * Format: int32
              * @description Explicit three- or five-year financing for a business or construction shortfall
-             * @enum {integer}
              */
-            loanYears?: 3 | 5;
+            loanYears?: number;
             /**
              * @description Paid workers or unpaid sponsor labor for START_CONSTRUCTION
              * @enum {string}
              */
             laborMode?: "paid" | "self";
+            sharedPlan?: components["schemas"]["SharedPlanInput"];
+        };
+        PlanTaskInput: {
+            resident: string;
+            destination: string;
+            activity: string;
+            /** Format: int32 */
+            durationMinutes?: number;
+            /** @enum {string} */
+            action?: "MOVE" | "RUN" | "JUMP" | "LOOK" | "TALK" | "CALL_OUT" | "ACKNOWLEDGE" | "DECLINE_CALL" | "BUY" | "SELL" | "EAT" | "WORK" | "REQUEST_OVERTIME" | "TAKE_LEAVE" | "CANCEL_LEAVE" | "REST" | "SLEEP" | "WEAR" | "REMOVE_CLOTHING" | "APPLY_JOB" | "ACCEPT_JOB" | "QUIT_JOB" | "USE_OBJECT" | "TRANSFER" | "BOARD_BUS" | "WAIT_BUS" | "TRAVEL_BUS" | "CONTINUE_TRAVEL" | "WAIT_RAIN" | "PAUSE_TRAVEL" | "END_CHAT" | "RELATE" | "PROPOSE_PLAN" | "ACCEPT_PLAN" | "DECLINE_PLAN" | "CANCEL_PLAN" | "JOIN_PLAN" | "WAIT_PLAN" | "DO_ACTIVITY" | "READ_BOOK" | "BORROW_BOOK" | "RETURN_BOOK" | "REASON" | "CREATE_WORK" | "DECLARE_INTEREST" | "START_PROJECT" | "INVITE_PROJECT" | "ACCEPT_PROJECT" | "DECLINE_PROJECT" | "RESEARCH_PROJECT" | "BUILD_PROJECT" | "USE_PRODUCT" | "ENDORSE_BUSINESS" | "LAUNCH_BUSINESS" | "START_BUSINESS" | "FUND_BUSINESS" | "SET_PRODUCT_PRICE" | "PRODUCE_PRODUCT" | "WITHDRAW_PROFIT" | "START_CONSTRUCTION" | "BUILD_CONSTRUCTION" | "REPAY_LOAN" | "PLACE_OBJECT" | "MOVE_OBJECT";
+            target?: string;
+            item?: string;
+        };
+        SharedPlanInput: {
+            operation: string;
+            plan?: string;
+            destination?: string;
+            activity?: string;
+            /** Format: int32 */
+            delayMinutes?: number;
+            /** Format: int32 */
+            durationMinutes?: number;
+            tasks?: components["schemas"]["PlanTaskInput"][];
         };
         BusinessView: {
             id?: string;
@@ -833,6 +936,7 @@ export interface components {
             /** Format: int32 */
             requiredWorkMinutes?: number;
             workers?: components["schemas"]["WorkerView"][];
+            workAreas?: components["schemas"]["Area"][];
         };
         StateBuilding: {
             id?: string;
@@ -856,6 +960,7 @@ export interface components {
             /** Format: double */
             outdoorRadius?: number;
             plannedType?: string;
+            workspaces?: components["schemas"]["WorkspaceStation"][];
         };
         Stop: {
             id?: string;
@@ -927,6 +1032,56 @@ export interface components {
             construction?: components["schemas"]["ConstructionView"];
             objects?: components["schemas"]["ObjectView"][];
         };
+        ActivityExecutionProgress: {
+            mode?: string;
+            phase?: string;
+            label?: string;
+            location?: string;
+            resumePhase?: string;
+            /** Format: double */
+            originX?: number;
+            /** Format: double */
+            originZ?: number;
+            /** Format: double */
+            radius?: number;
+            /** Format: double */
+            distance?: number;
+            /** Format: int32 */
+            requestedMinutes?: number;
+            /** Format: int32 */
+            activeMinutes?: number;
+            /** Format: int32 */
+            inspectedStops?: number;
+            /** Format: int32 */
+            nextStop?: number;
+            /** Format: int64 */
+            lastMinute?: number;
+            stops?: number[][];
+            inspected?: string[];
+            /** Format: int32 */
+            walkVersion?: number;
+            /** Format: double */
+            entryX?: number;
+            /** Format: double */
+            entryZ?: number;
+            walkLeader?: string;
+            walkCompanions?: string[];
+            walkApproach?: number[][];
+        };
+        ActivityOutcome: {
+            id?: string;
+            label?: string;
+            location?: string;
+            mode?: string;
+            /** Format: int32 */
+            activeMinutes?: number;
+            /** Format: int32 */
+            inspectedStops?: number;
+            /** Format: double */
+            distance?: number;
+            /** Format: int64 */
+            minute?: number;
+        };
         BookLoan: {
             book?: string;
             /** Format: int64 */
@@ -967,6 +1122,12 @@ export interface components {
             prerequisitePoints?: number;
             unlocked?: boolean;
         };
+        CommitmentInterruption: {
+            /** Format: int64 */
+            startedMinute?: number;
+            /** Format: int32 */
+            turns?: number;
+        };
         Creation: {
             id?: string;
             subject?: string;
@@ -984,6 +1145,16 @@ export interface components {
             /** Format: int32 */
             sleepMinute?: number;
             morningActivity?: string;
+        };
+        Day: {
+            /** Format: int32 */
+            observedMinutes?: number;
+            activityMinutes?: {
+                [key: string]: number;
+            };
+            completedActions?: {
+                [key: string]: number;
+            };
         };
         Detail: {
             state?: components["schemas"]["Resident"];
@@ -1015,6 +1186,28 @@ export interface components {
             overdueCents?: number;
             /** Format: int64 */
             borrowingLimitCents?: number;
+        };
+        History: {
+            /** Format: int64 */
+            trackedSince?: number;
+            /** Format: int64 */
+            lastTick?: number;
+            /** Format: int64 */
+            stretchMinutes?: number;
+            lastActivity?: string;
+            days?: {
+                [key: string]: components["schemas"]["Day"];
+            };
+        };
+        Intention: {
+            focus?: string;
+            nextStep?: string;
+            reason?: string;
+            target?: string;
+            /** Format: int64 */
+            chosenMinute?: number;
+            /** Format: int64 */
+            reviewMinute?: number;
         };
         InterestedResident: {
             id?: string;
@@ -1093,10 +1286,45 @@ export interface components {
             maturityMinute?: number;
             status?: string;
         };
+        Mind: {
+            dailyLife?: components["schemas"]["History"];
+            /** Format: int64 */
+            revision?: number;
+            /** Format: int64 */
+            reviewedRevision?: number;
+            /** Format: int64 */
+            lastDeliberatedMinute?: number;
+            /** Format: int64 */
+            observedMinute?: number;
+            perceived?: {
+                [key: string]: string;
+            };
+            scene?: components["schemas"]["Scene"];
+            notices?: components["schemas"]["Notice"][];
+            visits?: {
+                [key: string]: components["schemas"]["Visit"];
+            };
+            intention?: components["schemas"]["Intention"];
+            feeling?: string;
+            /** Format: int64 */
+            feelingMinute?: number;
+            reflections?: components["schemas"]["Reflection"][];
+            outcomes?: components["schemas"]["Outcome"][];
+        };
         NightPlan: {
             reason?: string;
             /** Format: int64 */
             until?: number;
+        };
+        Notice: {
+            /** Format: int64 */
+            revision?: number;
+            kind?: string;
+            description?: string;
+            /** Format: int32 */
+            priority?: number;
+            /** Format: int64 */
+            minute?: number;
         };
         Offer: {
             /** Format: int32 */
@@ -1106,10 +1334,43 @@ export interface components {
             /** Format: int32 */
             installments?: number;
         };
+        Outcome: {
+            id?: string;
+            action?: string;
+            target?: string;
+            status?: string;
+            result?: string;
+            /** Format: int64 */
+            minute?: number;
+        };
         Pending: {
             id?: string;
             type?: string;
             target?: string;
+            detail?: string;
+            activityExecution?: components["schemas"]["ActivityExecutionProgress"];
+            activityPaused?: boolean;
+            /** Format: int64 */
+            activityPauseMinute?: number;
+            /** Format: int32 */
+            activeMinutes?: number;
+            trackedWork?: boolean;
+            /** Format: int32 */
+            regularWorkMinutes?: number;
+            /** Format: int64 */
+            workHourlyWage?: number;
+            /** Format: int64 */
+            workOvertimeHourlyWage?: number;
+            workEmployer?: string;
+            workspaceId?: string;
+            workspaceKind?: string;
+            /** Format: double */
+            workspaceX?: number;
+            /** Format: double */
+            workspaceZ?: number;
+            /** Format: double */
+            workspaceHeading?: number;
+            workspaceReady?: boolean;
             /** Format: int64 */
             until?: number;
             route?: number[][];
@@ -1140,6 +1401,11 @@ export interface components {
             exitDoor?: number[];
             /** Format: int64 */
             startedAt?: number;
+            payrollId?: string;
+            /** Format: int64 */
+            payrollCloseMinute?: number;
+            /** Format: int32 */
+            workDurationMinutes?: number;
             /** Format: int64 */
             lastWorkedMinute?: number;
             mainSleep?: boolean;
@@ -1165,6 +1431,18 @@ export interface components {
             objectZ?: number;
             /** Format: int32 */
             seatIndex?: number;
+            seatApproachInitialized?: boolean;
+            seatReady?: boolean;
+        };
+        PlanTask: {
+            resident?: string;
+            destination?: string;
+            activity?: string;
+            /** Format: int32 */
+            durationMinutes?: number;
+            action?: string;
+            target?: string;
+            item?: string;
         };
         Problem: {
             id?: string;
@@ -1181,6 +1459,12 @@ export interface components {
             problem?: string;
             analysis?: string;
             concepts?: string[];
+            /** Format: int64 */
+            minute?: number;
+        };
+        Reflection: {
+            lesson?: string;
+            outcomeId?: string;
             /** Format: int64 */
             minute?: number;
         };
@@ -1222,6 +1506,19 @@ export interface components {
             encounterReviewed?: {
                 [key: string]: number;
             };
+            commitmentInterruptions?: {
+                [key: string]: components["schemas"]["CommitmentInterruption"];
+            };
+            sharedExperiences?: components["schemas"]["SocialExperience"][];
+            activityHistory?: components["schemas"]["ActivityOutcome"][];
+            activityMotion?: components["schemas"]["Pose"][];
+            recentPerformance?: components["schemas"]["ActionPerformance"];
+            /** Format: int64 */
+            performanceUntil?: number;
+            sharedExperienceCounts?: {
+                [key: string]: number;
+            };
+            mind?: components["schemas"]["Mind"];
             /** Format: double */
             facingHeading?: number;
             /** Format: int64 */
@@ -1261,6 +1558,9 @@ export interface components {
             /** Format: int64 */
             leaveDay?: number;
             workPermit?: components["schemas"]["WorkPermit"];
+            workPayroll?: {
+                [key: string]: components["schemas"]["Workday"];
+            };
             /** Format: double */
             wetness?: number;
             raincoatWorn?: boolean;
@@ -1278,6 +1578,18 @@ export interface components {
             hungerWakeUntil?: number;
             hungerWakeNeedsFood?: boolean;
         };
+        Scene: {
+            location?: string;
+            place?: string;
+            purpose?: string;
+            indoors?: boolean;
+            weather?: string;
+            /** Format: int32 */
+            temperature?: number;
+            daylight?: string;
+            objects?: string[];
+            visiblePlaces?: string[];
+        };
         SmallBusinessOption: {
             kind?: string;
             title?: string;
@@ -1293,6 +1605,16 @@ export interface components {
             /** Format: int64 */
             defaultCapitalCents?: number;
         };
+        SocialExperience: {
+            plan?: string;
+            other?: string;
+            destination?: string;
+            activity?: string;
+            /** Format: int64 */
+            startedMinute?: number;
+            /** Format: int64 */
+            completedMinute?: number;
+        };
         SocialPlan: {
             id?: string;
             proposer?: string;
@@ -1304,6 +1626,35 @@ export interface components {
             meetingMinute?: number;
             /** Format: int64 */
             expires?: number;
+            tasks?: {
+                [key: string]: components["schemas"]["PlanTask"];
+            };
+            finished?: string[];
+            joined?: string[];
+            activityActions?: {
+                [key: string]: string;
+            };
+            activityUntil?: {
+                [key: string]: number;
+            };
+            attempts?: {
+                [key: string]: number;
+            };
+            blocked?: {
+                [key: string]: string;
+            };
+            retryAfter?: {
+                [key: string]: number;
+            };
+            /** Format: int64 */
+            startedMinute?: number;
+            /** Format: int64 */
+            completedMinute?: number;
+            conversationKey?: string;
+            /** Format: int64 */
+            sourceTurnSequence?: number;
+            /** Format: int64 */
+            sourceMinute?: number;
         };
         StaffAccessStatus: {
             canRequest?: boolean;
@@ -1353,6 +1704,14 @@ export interface components {
             sharedConditions?: components["schemas"]["Problem"][];
             interests?: string[];
         };
+        Visit: {
+            location?: string;
+            name?: string;
+            /** Format: int32 */
+            count?: number;
+            /** Format: int64 */
+            lastMinute?: number;
+        };
         WorkPermit: {
             job?: string;
             /** Format: int64 */
@@ -1382,6 +1741,26 @@ export interface components {
             overtimeHourlyWage?: number;
             overtimeAvailable?: boolean;
             staffAccess?: components["schemas"]["StaffAccessStatus"];
+        };
+        Workday: {
+            id?: string;
+            job?: string;
+            building?: string;
+            employer?: string;
+            /** Format: int64 */
+            day?: number;
+            /** Format: int64 */
+            scheduledEndMinute?: number;
+            /** Format: int64 */
+            payAtMinute?: number;
+            /** Format: int64 */
+            overtimeEndMinute?: number;
+            /** Format: int64 */
+            earnedCents?: number;
+            /** Format: int32 */
+            workedMinutes?: number;
+            /** Format: int32 */
+            overtimeMinutes?: number;
         };
         RuntimeStatus: {
             mode?: string;
@@ -1432,9 +1811,37 @@ export interface components {
                 [key: string]: number;
             };
         };
+        Commitment: {
+            kind?: string;
+            id?: string;
+            target?: string;
+            /** Format: int64 */
+            minute?: number;
+            /** Format: int64 */
+            expiresMinute?: number;
+            /** Format: int32 */
+            walkingMinutes?: number;
+            /** Format: int64 */
+            leaveByMinute?: number;
+            description?: string;
+        };
         Contact: {
             agent?: string;
             available?: boolean;
+        };
+        Due: {
+            job?: string;
+            building?: string;
+            /** Format: int64 */
+            day?: number;
+            /** Format: int64 */
+            payAtMinute?: number;
+            /** Format: int32 */
+            workedMinutes?: number;
+            /** Format: int32 */
+            overtimeMinutes?: number;
+            /** Format: int64 */
+            earnedCents?: number;
         };
         Encounter: {
             other?: string;
@@ -1501,7 +1908,7 @@ export interface components {
             locations?: components["schemas"]["Building"][];
             jobs?: components["schemas"]["Job"][];
             events?: components["schemas"]["Event"][];
-            actions?: ("MOVE" | "RUN" | "JUMP" | "LOOK" | "TALK" | "CALL_OUT" | "ACKNOWLEDGE" | "DECLINE_CALL" | "BUY" | "SELL" | "EAT" | "WORK" | "REQUEST_OVERTIME" | "TAKE_LEAVE" | "CANCEL_LEAVE" | "REST" | "SLEEP" | "WEAR" | "REMOVE_CLOTHING" | "APPLY_JOB" | "ACCEPT_JOB" | "QUIT_JOB" | "USE_OBJECT" | "TRANSFER" | "BOARD_BUS" | "WAIT_BUS" | "TRAVEL_BUS" | "CONTINUE_TRAVEL" | "WAIT_RAIN" | "PAUSE_TRAVEL" | "END_CHAT" | "RELATE" | "PROPOSE_PLAN" | "ACCEPT_PLAN" | "DECLINE_PLAN" | "CANCEL_PLAN" | "JOIN_PLAN" | "READ_BOOK" | "BORROW_BOOK" | "RETURN_BOOK" | "REASON" | "CREATE_WORK" | "DECLARE_INTEREST" | "START_PROJECT" | "INVITE_PROJECT" | "ACCEPT_PROJECT" | "DECLINE_PROJECT" | "RESEARCH_PROJECT" | "BUILD_PROJECT" | "USE_PRODUCT" | "ENDORSE_BUSINESS" | "LAUNCH_BUSINESS" | "START_BUSINESS" | "FUND_BUSINESS" | "SET_PRODUCT_PRICE" | "PRODUCE_PRODUCT" | "WITHDRAW_PROFIT" | "START_CONSTRUCTION" | "BUILD_CONSTRUCTION" | "REPAY_LOAN" | "PLACE_OBJECT" | "MOVE_OBJECT")[];
+            actions?: ("CONTINUE_ACTIVITY" | "PAUSE_ACTIVITY" | "RESUME_ACTIVITY" | "STOP_ACTIVITY" | "MOVE" | "RUN" | "JUMP" | "LOOK" | "TALK" | "CALL_OUT" | "ACKNOWLEDGE" | "DECLINE_CALL" | "BUY" | "SELL" | "EAT" | "WORK" | "REQUEST_OVERTIME" | "TAKE_LEAVE" | "CANCEL_LEAVE" | "REST" | "SLEEP" | "WEAR" | "REMOVE_CLOTHING" | "APPLY_JOB" | "ACCEPT_JOB" | "QUIT_JOB" | "USE_OBJECT" | "TRANSFER" | "BOARD_BUS" | "WAIT_BUS" | "TRAVEL_BUS" | "CONTINUE_TRAVEL" | "WAIT_RAIN" | "PAUSE_TRAVEL" | "END_CHAT" | "RELATE" | "PROPOSE_PLAN" | "ACCEPT_PLAN" | "DECLINE_PLAN" | "CANCEL_PLAN" | "JOIN_PLAN" | "WAIT_PLAN" | "DO_ACTIVITY" | "READ_BOOK" | "BORROW_BOOK" | "RETURN_BOOK" | "REASON" | "CREATE_WORK" | "DECLARE_INTEREST" | "START_PROJECT" | "INVITE_PROJECT" | "ACCEPT_PROJECT" | "DECLINE_PROJECT" | "RESEARCH_PROJECT" | "BUILD_PROJECT" | "USE_PRODUCT" | "ENDORSE_BUSINESS" | "LAUNCH_BUSINESS" | "START_BUSINESS" | "FUND_BUSINESS" | "SET_PRODUCT_PRICE" | "PRODUCE_PRODUCT" | "WITHDRAW_PROFIT" | "START_CONSTRUCTION" | "BUILD_CONSTRUCTION" | "REPAY_LOAN" | "PLACE_OBJECT" | "MOVE_OBJECT")[];
             objects?: string[];
             gatheringPlaces?: components["schemas"]["GatheringPlace"][];
             transport?: components["schemas"]["Network"];
@@ -1516,13 +1923,20 @@ export interface components {
             innovations?: components["schemas"]["View"];
             livelihood?: components["schemas"]["LivelihoodView"];
             worldObjects?: {
-                [key: string]: unknown;
+                [key: string]: Record<string, never>;
             };
-            sleep?: components["schemas"]["SleepNeeds"];
-            supplies?: components["schemas"]["Supplies"];
-            exploration?: components["schemas"]["Exploration"];
-            seating?: components["schemas"]["View"];
             conversationFocus?: components["schemas"]["Focus"][];
+            awareness?: components["schemas"]["View"];
+            nightReturnDue?: boolean;
+            workspaces?: components["schemas"]["WorkspaceStation"][];
+            cognition?: components["schemas"]["View"];
+            supplies?: components["schemas"]["Supplies"];
+            dailyLife?: components["schemas"]["View"];
+            exploration?: components["schemas"]["Exploration"];
+            performance?: components["schemas"]["ActionPerformance"];
+            sleep?: components["schemas"]["SleepNeeds"];
+            payroll?: components["schemas"]["Due"][];
+            seating?: components["schemas"]["View"];
         };
         Point: {
             /** Format: double */
@@ -1548,7 +1962,12 @@ export interface components {
             encounters?: components["schemas"]["Encounter"][];
             plans?: components["schemas"]["SocialPlan"][];
             calls?: components["schemas"]["PublicCall"][];
+            commitments?: components["schemas"]["Commitment"][];
             reconsider?: boolean;
+            sharedExperiences?: components["schemas"]["SocialExperience"][];
+            sharedExperienceCounts?: {
+                [key: string]: number;
+            };
         };
         SleepNeeds: {
             tired?: boolean;
@@ -1726,6 +2145,32 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["NightPlanInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: boolean;
+                    };
+                };
+            };
+        };
+    };
+    cognition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Update"];
             };
         };
         responses: {

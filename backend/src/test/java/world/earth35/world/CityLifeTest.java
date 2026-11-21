@@ -99,12 +99,15 @@ class CityLifeTest {
         Engine.apply(s,b,talk(a.id,"Shall we discuss our plans for tomorrow?"),"fresh",new Engine.Effects());
         assertEquals(2,s.conversations.values().iterator().next().turns.size());
     }
-    @Test void earlyAndLatePersonalitiesKeepDistinctPersistentSleepWindows() {
+    @Test void personalityKeywordsDoNotAssignHabitsAndChosenSleepWindowsPersist() {
         State s=State.seed();Resident early=resident(s,"early","apt-101"),late=resident(s,"late","apt-101");
         early.personality="Early bird, athletic runner";late.personality="Night owl who sleeps in";
         early.routine=DailyRoutines.derive(early);late.routine=DailyRoutines.derive(late);
-        assertTrue(early.routine.wakeMinute<late.routine.wakeMinute);assertEquals("jogging",early.routine.morningActivity);
+        assertEquals(early.routine.wakeMinute,late.routine.wakeMinute);
+        assertEquals("breakfast",early.routine.morningActivity);
         assertEquals(early.routine.sleepMinute,DailyRoutines.derive(early).sleepMinute);
+        early.routine.wakeMinute=330;early.routine.sleepMinute=1290;early.routine.morningActivity="jogging";
+        late.routine.wakeMinute=540;late.routine.sleepMinute=60;
         s.minute=1440+early.routine.wakeMinute;
         assertFalse(DailyRoutines.sleepingTime(early,s.minute));assertTrue(DailyRoutines.sleepingTime(late,s.minute));
         s.minute=1439;Engine.apply(s,early,cmd(ActionType.SLEEP,null,null),"sleep",new Engine.Effects());

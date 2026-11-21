@@ -48,17 +48,13 @@ class AgentNightRoutineTest {
         assertEquals(1500,restored.agents.get("alex").nightPlan.until);
         assertNull(json.readValue("{\"name\":\"Existing resident\"}",State.Resident.class).nightPlan);
     }
-    @Test void hostedIdleChoicesRecordRealMovementAndThenSleepActions() {
+    @Test void hostedObservationRemainsAnObservationEvenWhenTiredAtNight() {
         Command look=new Command("idle",ActionType.LOOK,null,null,null,null,null);
-        Receipt home=agents.hostedAction("alex",look,null);
-        assertEquals("accepted",home.status());assertEquals("MOVE",resident.pending.type);
-        assertTrue(resident.bedtimeRoutine);
-        assertEquals(resident.home,resident.pending.target);assertEquals("road",resident.location);
-        while(resident.pending!=null) Engine.tick(state);
-        Receipt sleep=agents.nightRoutine("alex");
-        assertEquals("accepted",sleep.status());assertEquals("SLEEP",resident.pending.type);
-        assertEquals(1800,resident.pending.until);
+        Receipt observed=agents.hostedAction("alex",look,null);
+        assertEquals("completed",observed.status());assertNull(resident.pending);
+        assertFalse(resident.bedtimeRoutine);assertEquals("park",resident.location);
         assertNull(agents.nightRoutine("alex"));
+        assertEquals("LOOK",resident.mind.outcomes.getLast().action());
     }
     @Test void aHostedNightPlanIsPersistedBeforeItsActivityIsResolved() {
         Command look=new Command("planned-wait",ActionType.LOOK,null,null,null,null,null);
@@ -67,8 +63,8 @@ class AgentNightRoutineTest {
         assertNull(resident.pending);assertNotNull(resident.nightPlan);
         assertFalse(resident.bedtimeRoutine);
         assertNull(agents.nightRoutine("alex"));
-        assertEquals("accepted",agents.hostedAction("alex",new Command("cancel",ActionType.LOOK,null,null,null,null,null),new NightPlanInput("",0)).status());
-        assertNull(resident.nightPlan);assertEquals("MOVE",resident.pending.type);
+        assertEquals("completed",agents.hostedAction("alex",new Command("cancel",ActionType.LOOK,null,null,null,null,null),new NightPlanInput("",0)).status());
+        assertNull(resident.nightPlan);assertNull(resident.pending);assertEquals("park",resident.location);
     }
     @Test void retryingANightRoutineReturnsTheOriginalReceiptDuringMovement() {
         resident.pending=new State.Pending();
@@ -87,8 +83,8 @@ class AgentNightRoutineTest {
     }
     @Test void hostedRoutineChoiceChangesOnlyThatResidentBeforeResolvingTheAction() {
         state.minute=1290;
-        Receipt sleep=agents.hostedAction("alex",new Command("sleep-choice",ActionType.LOOK,null,null,null,null,null),null,new RoutineInput(330,1290,"jogging"));
-        assertEquals("accepted",sleep.status());assertEquals(330,resident.routine.wakeMinute);
-        assertEquals("MOVE",resident.pending.type);assertEquals(resident.home,resident.pending.target);
+        Receipt observed=agents.hostedAction("alex",new Command("routine-choice",ActionType.LOOK,null,null,null,null,null),null,new RoutineInput(330,1290,"jogging"));
+        assertEquals("completed",observed.status());assertEquals(330,resident.routine.wakeMinute);
+        assertNull(resident.pending);assertEquals("park",resident.location);
     }
 }

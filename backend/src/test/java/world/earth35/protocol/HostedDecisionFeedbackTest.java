@@ -235,6 +235,19 @@ class HostedDecisionFeedbackTest {
         verify(store.db).update(contains("UPDATE hosted_agents SET"),eq("running"),eq(""),
             eq(0L),eq(6),eq(200L),eq(0L),eq(1),eq(27L),eq(8),eq("alex"));
     }
+    @Test void repeatedActivityRemainsTheModelsChoiceWithoutAMandatoryReflection() {
+        self.activityHistory.add(new ActivityExecution.Outcome("search-1","Search for native plants","park","search",15,3,18,719));
+        Cognition.action(self,719,"search-1","DO_ACTIVITY","park","completed","Inspected three stops; no verified discovery");
+        when(agents.observe(eq("alex"),anyLong())).thenReturn(observation());
+        when(memory.recall(anyString(),any())).thenReturn(List.of());
+        Command replay=new Command("repeat",ActionType.DO_ACTIVITY,null,"Spend 15 minutes searching for native plants",null,15,null);
+        doReturn(new HostedAgentService.Decision(replay,null,null,29,null)).when(runtime).decide(any(),any(),anyList());
+        when(agents.hostedAction("alex",replay,null)).thenReturn(new Receipt("next-block","accepted","Activity started",720));
+        runtime.run(new HostedAgentService.Job("alex","nvidia","test-model","unused",0,0,4,100));
+        verify(agents).hostedAction("alex",replay,null);assertTrue(self.mind.reflections.isEmpty());
+        verify(store.db).update(contains("UPDATE hosted_agents SET"),eq("running"),eq(""),
+            eq(0L),eq(5),eq(129L),eq(0L),eq(1),eq(29L),eq(8),eq("alex"));
+    }
     @Test void decisionsContinueAtAndAboveTheFormerCallAndTokenLimitsAndTrackUsage() {
         when(agents.observe(eq("alex"),anyLong())).thenReturn(observation());
         when(memory.recall(anyString(),any())).thenReturn(List.of());
@@ -287,6 +300,21 @@ class HostedDecisionFeedbackTest {
             verify(connected).providerCall(eq("nvidia"),eq("test-key"),eq("model"),contains("Your previous decision failed"),anyString(),eq(4096));
         } finally {connected.stop();}
     }
+    @Test void changedSurroundingsWakeRestAndPersistTheModelsChosenIntentionBeforeItsAction() {
+        self.pending=new State.Pending();self.pending.type="REST";self.pending.id="break";
+        Cognition.perceive(state,self,java.util.Map.of());
+        var observed=observation();assertTrue(HostedAgentService.decisionDue(observed));
+        var update=new Cognition.Update(new Cognition.IntentionDraft("Learn gardening","Visit the library after resting","I want to grow food","library",60),false,"Curious",null,null);
+        var look=new Command("notice",ActionType.LOOK,null,null,null,null,null);
+        when(agents.observe(eq("alex"),anyLong())).thenReturn(observed);
+        when(memory.recall(anyString(),any())).thenReturn(List.of());
+        doReturn(new HostedAgentService.Decision(look,null,null,20,null,null,List.of(),update)).when(runtime).decide(any(),any(),anyList());
+        when(agents.hostedAction("alex",look,null,null,update)).thenReturn(new Receipt("notice","completed","Observed",720));
+        runtime.run(new HostedAgentService.Job("alex","nvidia","test-model","unused",0,0,0,0));
+        verify(agents).hostedAction("alex",look,null,null,update);
+        verify(memory,never()).pendingConversation("alex");
+        self.pending.type="WORK";assertTrue(HostedAgentService.decisionDue(observed));assertEquals("WORK",self.pending.type);
+    }
     @Test void familiarEncounterWakesTheModelDuringTravelAndProvidesPrivateContext() {
         self.pending=new State.Pending();self.pending.type="MOVE";self.pending.id="journey";
         self.relationships.put("maya","close friend");
@@ -306,7 +334,8 @@ class HostedDecisionFeedbackTest {
         when(agents.hostedAction("alex",talk,null)).thenReturn(new Receipt("hello","completed","Spoke to Maya",720));
         runtime.run(new HostedAgentService.Job("alex","nvidia","test-model","unused",0,0,0,0));
         verify(agents).hostedAction("alex",talk,null);
-        self.pending.type="WORK";assertFalse(HostedAgentService.decisionDue(encountered));
+        verify(memory,never()).pendingConversation("alex");
+        self.pending.type="WORK";assertFalse(HostedAgentService.decisionDue(encountered));assertEquals("WORK",self.pending.type);
         self.pending.type="MOVE";self.paused=true;assertFalse(HostedAgentService.decisionDue(encountered));
     }
 }

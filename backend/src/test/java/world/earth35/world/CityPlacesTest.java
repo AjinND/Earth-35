@@ -38,7 +38,7 @@ class CityPlacesTest {
             for(int i=0;i<300&&a.pending!=null;i++)Engine.tick(state);
             assertNull(a.pending,id);assertEquals(id,a.location);var place=state.buildings.get(id);assertEquals(place.x,a.x);assertEquals(place.z,a.z);
             a.energy=40;double before=a.energy;Engine.apply(state,a,command(ActionType.REST,null),"rest",new Engine.Effects());
-            for(int i=0;i<30;i++)Engine.tick(state);
+            for(int i=0;i<60&&a.pending!=null;i++)Engine.tick(state);
             assertNull(a.pending);assertTrue(a.energy>before,id);
             String object=state.buildings.get(id).objects.keySet().iterator().next();
             Engine.apply(state,a,command(ActionType.USE_OBJECT,object),"seat",new Engine.Effects());
@@ -68,6 +68,8 @@ class CityPlacesTest {
         Engine.apply(state,a,command(ActionType.ACCEPT_JOB,"job-bistro"),"accept",new Engine.Effects());
         Engine.apply(state,a,command(ActionType.WORK,null),"work",new Engine.Effects());
         for(int i=0;i<60;i++)Engine.tick(state);
+        assertEquals(initial-1000,a.money);assertNull(a.pending);
+        while(state.minute<state.jobs.get(a.job).endMinute)Engine.tick(state);
         assertEquals(initial+1000,a.money);assertNull(a.pending);
     }
     @Test void gatheringCountsTrackArrivalsAndExcludePrivateHomes() {

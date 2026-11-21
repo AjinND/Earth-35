@@ -45,13 +45,15 @@ class AgentEmploymentTest {
         Engine.apply(state,self,new Command("work",ActionType.WORK,null,null,null,null,null),"work-action",new Engine.Effects());
         for(int i=0;i<30;i++)Engine.tick(state);
         long money=self.money;Command command=quit("quit-shift");Receipt first=agents.action(self.id,command);
-        assertEquals("completed",first.status());assertEquals(money+1000,self.money);assertNull(self.pending);
+        assertEquals("completed",first.status());assertEquals(money,self.money);assertNull(self.pending);
+        assertEquals(1000,WorkPayroll.view(self).getFirst().earnedCents());
         verify(store.db).update("UPDATE agent_actions SET status=?,result=? WHERE id=?", "cancelled",
-            "Resident quit their job after 30 minutes; earned wages of 1000 cents settled and unused reservation returned to employer","work-action");
+            "Resident quit their job after 30 minutes; earned wages of 1000 cents reserved for workday-end payment and unused reservation returned to employer","work-action");
         doReturn(List.of(row(first))).when(store.db).queryForList(LOOKUP,self.id,command.requestId());
         String encoded=store.encode(command);
         doReturn(true).when(store.db).queryForObject("SELECT jsonb_strip_nulls(command)=jsonb_strip_nulls(?::jsonb) FROM agent_actions WHERE id=?",Boolean.class,encoded,first.id());
-        assertEquals(first,agents.action(self.id,command));assertEquals(money+1000,self.money);
+        assertEquals(first,agents.action(self.id,command));assertEquals(money,self.money);
+        assertEquals(1000,WorkPayroll.view(self).getFirst().earnedCents());
         verify(store,times(1)).effects(eq(state),any(Engine.Effects.class));
     }
 

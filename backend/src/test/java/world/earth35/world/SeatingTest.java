@@ -44,7 +44,7 @@ class SeatingTest {
         ObjectMapper json=new ObjectMapper();s=json.readValue(json.writeValueAsString(s),State.class);
         first=s.agents.get(first.id);second=s.agents.get(second.id);
         assertEquals(1,WorldStore.publicAgent(second).seatIndex());
-        for(int i=0;i<29;i++)Engine.tick(s);
+        for(int i=0;i<50&&first.pending!=null;i++)Engine.tick(s);
         assertNull(first.pending);assertEquals(1,second.pending.seatIndex);
         Resident next=visitor(s,"next","park");act(s,next,ActionType.USE_OBJECT,"park-bench");assertEquals(0,next.pending.seatIndex);
         Engine.tick(s);assertNull(second.pending);assertEquals(0,next.pending.seatIndex);

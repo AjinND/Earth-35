@@ -214,6 +214,14 @@ def test_voluntary_quit_reemployment_and_solo_shop_earn_actual_livelihood_income
         completed(seeker, "ACCEPT_JOB", target="job-office")
         seeker_money = observe(seeker)["self"]["money"]
         elapsed(seeker_id, seeker, "WORK", 60)
+        assert observe(seeker)["self"]["money"] == seeker_money
+        payday = observe(seeker)["payroll"][0]["payAtMinute"]
+        clock(payday - 1)
+        resume_clock()
+        try:
+            wait_for(lambda: observe(seeker)["self"]["money"] == seeker_money + 2000)
+        finally:
+            freeze_clock()
         assert observe(seeker)["self"]["money"] == seeker_money + 2000
         assert observe(founder)["self"]["job"] == "" and observe(founder)["self"]["pending"] is None
 

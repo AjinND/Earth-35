@@ -11,6 +11,7 @@ class ProjectsTest {
     private static final ObjectMapper JSON=new ObjectMapper();
     private Resident resident(State s,String id,boolean advanced) {
         Resident a=new Resident();a.id=id;a.name=id;a.home="apt-101";place(s,a,"office");s.agents.put(id,a);
+        var station=Workspaces.stations(s.buildings.get("office")).get(Math.min(s.agents.size()-1,4));a.x=station.x();a.z=station.z();
         if(advanced)study(a,"business",true);return a;
     }
     private void place(State s,Resident a,String location) {

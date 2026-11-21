@@ -33,7 +33,7 @@ class ScenicPlacesTest {
             Building b=state.buildings.get(id);assertEquals(b.x,a.x);assertEquals(b.z,a.z);
             assertEquals(id.equals("mall"),Travel.sheltered(b));
             a.energy=40;Engine.apply(state,a,command(ActionType.USE_OBJECT,b.objects.keySet().iterator().next()),"rest",new Engine.Effects());
-            for(int i=0;i<30;i++)Engine.tick(state);
+            for(int i=0;i<60&&a.pending!=null;i++)Engine.tick(state);
             assertNull(a.pending);assertTrue(a.energy>40,id);
             Resident friend=new Resident();friend.id="alex";friend.name="Alex";friend.location=id;friend.x=b.x;friend.z=b.z;state.agents.put(friend.id,friend);
             var effects=new Engine.Effects();Engine.apply(state,a,new Command("talk",ActionType.TALK,"alex","Lovely place for a visit!",null,null,null),"talk",effects);

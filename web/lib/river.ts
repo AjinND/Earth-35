@@ -1,5 +1,6 @@
 import type {IslandPoint} from "./island";
 import specification from "./island-landscapes.json";
+import {segmentIndex} from "./segment-index";
 
 const riverControls:readonly (readonly [number,number])[]=[[-205,-470],[-170,-423],[-80,-350],[-100,-295],[40,-242],[130,-165],[145,-76],[185,-5],[166,75],[233,145],[294,193],[380,230]];
 export const RIVER:readonly IslandPoint[]=riverControls.flatMap((p,i)=>{
@@ -11,14 +12,9 @@ export const RIVER:readonly IslandPoint[]=riverControls.flatMap((p,i)=>{
     return {x:axis(0),z:axis(1)};
   });
 });
+const riverIndex=segmentIndex([RIVER]);
 export function nearestRiver(x:number,z:number) {
-  let squaredDistance=Infinity,index=0,fraction=0;
-  for(let i=1;i<RIVER.length;i++) {
-    const a=RIVER[i-1],b=RIVER[i],dx=b.x-a.x,dz=b.z-a.z;
-    const t=Math.max(0,Math.min(1,((x-a.x)*dx+(z-a.z)*dz)/(dx*dx+dz*dz)));
-    const px=x-a.x-t*dx,pz=z-a.z-t*dz,d=px*px+pz*pz;
-    if(d<squaredDistance){squaredDistance=d;index=i-1;fraction=t;}
-  }
-  return {distance:Math.sqrt(squaredDistance),index,fraction,width:2.2+3.2*(index+fraction)/(RIVER.length-1)};
+  const {distance,index,fraction}=riverIndex(x,z);
+  return {distance,index,fraction,width:2.2+3.2*(index+fraction)/(RIVER.length-1)};
 }
 export const bridgeZones=specification.bridges.map(bridge=>bridge.z);

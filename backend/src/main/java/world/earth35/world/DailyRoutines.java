@@ -3,10 +3,10 @@ package world.earth35.world;
 import java.util.*;
 import world.earth35.world.State.*;
 
-/** Stable preferences: assigned once, rather than rerolled every decision or restart. */
+/** Sleep mechanics and advisory defaults; residents author their own preferences. */
 public final class DailyRoutines {
     public static final int SEVERE_HUNGER=98;
-    public static final String FOOD_ADVICE="Plan supplies for the full day, not just the next meal or drink. Read supplies for meal and drink targets and quantities missing; BUY enough to reach those targets when funds and stock permit, before shops close or you go home to sleep. Keep a night snack in reserve. Check actual prices, stock, opening hours and money; if short, buy what you can and try another open shop or replenish later. Coffee is a drink, not a replacement for meals. Hunger wakes are rare and depend on inadequate meals or a long meal gap before bed, never a fixed interval. If self.hungerWakeNeedsFood, EAT an owned meal (or coffee if no meal remains) at home before resuming sleep. Do not go shopping during a hunger wake; replenish during waking hours. Severe hunger (98 or more) still requires a meal before sleep.";
+    public static final String FOOD_ADVICE="supplies gives rough meal and drink planning estimates, not purchase quotas. Choose what to buy or consume using your hunger, money, actual prices, stock, opening hours and plans. Coffee reduces hunger less than a meal. Hunger wakes depend on inadequate meals or a long meal gap before bed, never a fixed interval. If self.hungerWakeNeedsFood, the current sleep mechanics require an owned meal (or coffee if no meal remains) at home before resuming sleep. Severe hunger (98 or more) requires a meal before sleep.";
     public record Supplies(int mealTarget,int drinkTarget,int mealsToBuy,int drinksToBuy) {}
     public static Supplies supplies(Resident a) {
         int meals=Math.max(3,(int)Math.ceil((a.hunger+1440*.035)/45)+1);
@@ -24,18 +24,9 @@ public final class DailyRoutines {
     }
     private DailyRoutines() {}
     public static DailyRoutine derive(Resident a) {
-        DailyRoutine r=new DailyRoutine();
-        String text=(Objects.toString(a.personality,"")+" "+Objects.toString(a.goals,"")).toLowerCase(Locale.ROOT);
-        int variation=Math.floorMod(Objects.toString(a.name,"").hashCode(),7)*10;
-        boolean early=text.matches("(?s).*\\b(early bird|early riser|morning person|dawn|jogging|jog|runner|running)\\b.*");
-        boolean late=text.matches("(?s).*\\b(night owl|late riser|late sleeper|sleeps in|sleep in)\\b.*");
-        boolean moreSleep=text.matches("(?s).*\\b(sleepy|sleep more|loves sleep|long sleeper)\\b.*");
-        r.wakeMinute=(early?300:late?480:moreSleep?450:390)+variation;
-        int hours=moreSleep?9:early?8:7;
-        r.sleepMinute=Math.floorMod(r.wakeMinute-hours*60,1440);
-        r.morningActivity=text.matches("(?s).*\\b(jogging|jog|runner|running|fitness|athletic)\\b.*")?"jogging":
-            text.contains("meditat")?"meditation":text.contains("read")?"reading":"breakfast";
-        return r;
+        // A neutral starting preference until the resident chooses one. Names and personality
+        // keywords must not silently assign habits or decide how a resident spends their day.
+        return new DailyRoutine();
     }
     public static boolean sleepingTime(Resident a,long minute) {
         if(a.routine==null) return NightRoutine.isNight(minute); // legacy in-memory callers
@@ -82,13 +73,13 @@ public final class DailyRoutines {
     }
     public static boolean workOpen(Job j,long minute) {
         int time=(int)Math.floorMod(minute,1440),day=(int)Math.floorMod(Math.floorDiv(minute,1440),7);
-        return j.workDays.contains(day)&&time>=j.startMinute&&time+60<=j.endMinute;
+        return j.workDays.contains(day)&&time>=j.startMinute&&time<j.endMinute;
     }
     public static long nextShift(Job j,long minute) {
         long day=Math.floorDiv(minute,1440);
         for(int i=0;i<8;i++) {
             long start=(day+i)*1440+j.startMinute,end=(day+i)*1440+j.endMinute;
-            if(j.workDays.contains((int)Math.floorMod(day+i,7))&&minute+60<=end) return Math.max(start,minute);
+            if(j.workDays.contains((int)Math.floorMod(day+i,7))&&minute<end) return Math.max(start,minute);
         }
         throw new IllegalStateException("Job has no workdays");
     }
@@ -98,16 +89,22 @@ public final class DailyRoutines {
     }
     /** Count only scheduled minutes; extra work must be explicitly chosen and paid. */
     public static int overtimeMinutes(Job j,Resident a,long minute) {
+        return overtimeMinutes(j,a,minute,60);
+    }
+    public static int overtimeMinutes(Job j,Resident a,long minute,int duration) {
         int regular=0,remaining=Math.max(0,j.endMinute-j.startMinute-regularMinutesToday(a,minute));
-        for(int i=0;i<60;i++) {
+        for(int i=0;i<duration;i++) {
             long at=minute+i;int time=(int)Math.floorMod(at,1440);
             if(j.workDays.contains((int)Math.floorMod(Math.floorDiv(at,1440),7))&&time>=j.startMinute&&time<j.endMinute&&regular<remaining)regular++;
         }
-        return 60-regular;
+        return duration-regular;
     }
     public static long overtimeHourlyWage(Job j) {return j.hourlyWage+j.hourlyWage/2;}
     public static boolean fullHourOpen(Building b,long minute) {
-        for(int i=0;i<60;i++)if(!Places.open(b,minute+i))return false;
+        return openFor(b,minute,60);
+    }
+    public static boolean openFor(Building b,long minute,int duration) {
+        for(int i=0;i<duration;i++)if(!Places.open(b,minute+i))return false;
         return true;
     }
     public record WorkSchedule(String job,String building,int startMinute,int endMinute,List<Integer> workDays,

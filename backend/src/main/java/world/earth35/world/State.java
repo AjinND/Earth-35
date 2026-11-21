@@ -33,7 +33,16 @@ public class State {
         public long money = 100000, arrears = 0, lastSeen = 0;
         public Map<String, Integer> inventory = new LinkedHashMap<>(Map.of("meal", 2));
         public Map<String, String> relationships = new LinkedHashMap<>();
+        public Map<String, Relationships.Bond> bonds = new LinkedHashMap<>();
         public Map<String, Long> encounterReviewed = new LinkedHashMap<>();
+        public Map<String, CommitmentInterruption> commitmentInterruptions = new LinkedHashMap<>();
+        public List<SocialExperience> sharedExperiences = new ArrayList<>();
+        public List<ActivityExecution.Outcome> activityHistory = new ArrayList<>();
+        public List<Traffic.Pose> activityMotion = new ArrayList<>();
+        public ActionPerformance.View recentPerformance;
+        public long performanceUntil;
+        public Map<String,Integer> sharedExperienceCounts = new LinkedHashMap<>();
+        public Cognition.Mind mind = new Cognition.Mind();
         public Double facingHeading;
         public long facingUntil;
         public Map<String, BookLoan> bookLoans = new LinkedHashMap<>();
@@ -52,6 +61,7 @@ public class State {
         public int overtimeMinutes;
         public long leaveDay = -1;
         public WorkPermit workPermit;
+        public Map<String,WorkPayroll.Workday> workPayroll=new LinkedHashMap<>();
         public double wetness;
         public boolean raincoatWorn;
         public long lastWakeMinute = -1;
@@ -116,6 +126,27 @@ public class State {
     public static class SocialPlan {
         public String id, proposer, invited, destination, activity, status = "proposed";
         public long meetingMinute, expires;
+        public Map<String,PlanTask> tasks = new LinkedHashMap<>();
+        public Set<String> finished = new LinkedHashSet<>();
+        public Set<String> joined = new LinkedHashSet<>();
+        public Map<String,String> activityActions = new LinkedHashMap<>();
+        public Map<String,Long> activityUntil = new LinkedHashMap<>();
+        public Map<String,Integer> attempts = new LinkedHashMap<>();
+        public Map<String,String> blocked = new LinkedHashMap<>();
+        public Map<String,Long> retryAfter = new LinkedHashMap<>();
+        public Long startedMinute, completedMinute;
+        public String conversationKey;
+        public Long sourceTurnSequence, sourceMinute;
+    }
+    public record PlanTask(String resident,String destination,String activity,int durationMinutes,String action,String target,String item) {
+        public PlanTask(String resident,String destination,String activity,int durationMinutes) {
+            this(resident,destination,activity,durationMinutes,"DO_ACTIVITY",destination,null);
+        }
+    }
+    public record SocialExperience(String plan,String other,String destination,String activity,long startedMinute,long completedMinute) {}
+    public static class CommitmentInterruption {
+        public long startedMinute;
+        public int turns;
     }
     public static class WorkPermit {
         public String job;
@@ -162,6 +193,18 @@ public class State {
     }
     public static class Pending {
         public String id, type, target;
+        public String detail;
+        public ActivityExecution.Progress activityExecution;
+        public boolean activityPaused;
+        public long activityPauseMinute = -1;
+        public int activeMinutes;
+        public boolean trackedWork;
+        public int regularWorkMinutes;
+        public long workHourlyWage,workOvertimeHourlyWage;
+        public String workEmployer;
+        public String workspaceId,workspaceKind;
+        public double workspaceX,workspaceZ,workspaceHeading;
+        public boolean workspaceReady;
         public long until;
         public List<double[]> route = new ArrayList<>();
         public String vehicleId, boardingStop, waitingReason;
@@ -179,6 +222,9 @@ public class State {
         public boolean entering;
         public double[] exitDoor;
         public long startedAt;
+        public String payrollId;
+        public long payrollCloseMinute;
+        public int workDurationMinutes;
         public long lastWorkedMinute = -1;
         public boolean mainSleep;
         // Legacy sleeps have no evidence of an inadequate bedtime meal.
@@ -192,6 +238,7 @@ public class State {
         public String objectId, objectKind, objectText, objectBusiness;
         public double objectX, objectZ;
         public Integer seatIndex;
+        public boolean seatApproachInitialized,seatReady;
     }
     public static State seed() {
         State s=prototypeSeed();OrganicCity.upgrade(s);CityExpansion.upgrade(s);Traffic.upgradeStops(s);Construction.initializeCitySites(s,new Engine.Effects());IslandLandscapes.upgrade(s);IslandLandscapes.completePhase3(s);return s;

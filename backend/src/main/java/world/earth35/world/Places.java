@@ -65,6 +65,42 @@ public final class Places {
     public static boolean canEnter(State s,Resident a,Building b,long minute) {
         return open(b,minute)||WorkAccess.approved(s,a,b,minute);
     }
+    /** Closing ends public visits, including stale occupants restored from a saved world. */
+    static void closeVisit(State s,Resident a,Engine.Effects effects) {
+        Building b=s.buildings.get(a.location);
+        boolean departing=Travel.moving(a)&&a.pending.exitDoor!=null&&!a.pending.entering;
+        if(!enclosed(b)&&departing) {
+            // Departures say "road" before the resident has crossed the exit door.
+            double[] exit=a.pending.exitDoor;
+            b=s.buildings.values().stream().filter(Places::enclosed).filter(place->{
+                Entrance door=entrance(place);
+                return Math.hypot(door.x()-exit[0],door.z()-exit[1])<.001;
+            }).findFirst().orElse(null);
+        }
+        if(!enclosed(b)||canEnter(s,a,b,s.minute))return;
+        Pending p=a.pending;
+        // Accepted work has already reserved wages and access for its whole block.
+        // Expiry prevents new work; the accepted block finishes before staff leave.
+        if(p!=null&&"WORK".equals(p.type)&&b.id.equals(p.target)&&s.minute<p.until)return;
+        String reason=b.name+" is closed; you are outside its front entrance. Choose an open place or return after opening";
+        if(p!=null&&!departing) {
+            if(List.of("RESEARCH_PROJECT","BUILD_PROJECT").contains(p.type))Projects.interrupt(s,a,effects,reason);
+            else if("PRODUCE_PRODUCT".equals(p.type))Ventures.interrupt(s,a,effects,reason);
+            else {
+                effects.completions.add(new Engine.Completion(p.id,"cancelled",reason));
+                a.pending=null;
+            }
+        }
+        Conversations.end(s,a);
+        Entrance door=entrance(b);
+        a.x=door.x();a.z=door.z();a.location="road";
+        if(departing) {
+            p.socialWith=null;p.socialUntil=0;p.waitingReason=null;p.exitDoor=null;
+            p.route=Travel.path(s,a,Travel.walkingDestination(s,p),p.routeChoice==null?"shortest":p.routeChoice);
+            p.frontDoorRoute=true;
+        }
+        effects.facts.add(new Engine.Fact("daily_life",a.id,b.id,a.name+" left "+b.name+" through its front entrance because it is closed."));
+    }
     public static void requireEntry(State s,Resident a,Building b,long minute) {
         Engine.require(!b.type.equals("construction"),b.name+" is under construction; choose a completed building or nearby outdoor land");
         if(canEnter(s,a,b,minute))return;

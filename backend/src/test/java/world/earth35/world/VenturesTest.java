@@ -11,7 +11,7 @@ class VenturesTest {
         State s=State.prototypeSeed();s.minute=600;
         for(String id:List.of("founder","partner","buyer","worker","second-worker")) {
             State.Resident a=new State.Resident();a.id=id;a.name=id;a.home="apt-101";a.location="office";
-            a.x=s.buildings.get("office").x;a.z=s.buildings.get("office").z;s.agents.put(id,a);
+            var station=Workspaces.stations(s.buildings.get("office")).get(s.agents.size());a.x=station.x();a.z=station.z();s.agents.put(id,a);
         }
         Projects.Project p=new Projects.Project();p.id="food-project";p.founder="founder";p.title="Useful field lunch";
         p.subject="business";p.problem="Residents need portable nourishment during their workday.";
@@ -128,7 +128,9 @@ class VenturesTest {
         assertThrows(Engine.Invalid.class,()->apply(s,"second-worker",ActionType.APPLY_JOB,b.jobId,null,null,null,null,"full"));
         long salary=s.agents.get("worker").money;apply(s,"worker",ActionType.WORK,null,null,null,null,null,"work");
         assertEquals(capital-1000,s.accounts.get(b.id));assertEquals(host,s.accounts.get(b.location));assertEquals(7000,Economy.remainingPayroll(s,b.id));
-        minutes(s,60);assertEquals(salary+1000,s.agents.get("worker").money);assertEquals(total,total(s));
+        minutes(s,60);assertEquals(salary,s.agents.get("worker").money);assertEquals(total,total(s));
+        while(s.minute<s.jobs.get(b.jobId).endMinute)Engine.tick(s);
+        assertEquals(salary+1000,s.agents.get("worker").money);assertEquals(total,total(s));
         s.minute=1800;s.accounts.put(b.id,0L);Engine.Effects settlement=new Engine.Effects();Economy.settle(s,settlement);
         assertEquals(0L,s.accounts.get(b.id));assertEquals(0,b.stock);
         assertTrue(settlement.payments.stream().noneMatch(p->b.id.equals(p.destination())));

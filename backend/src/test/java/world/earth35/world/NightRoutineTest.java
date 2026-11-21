@@ -19,17 +19,22 @@ class NightRoutineTest {
         assertEquals(1800,NightRoutine.nextMorning(1200));assertEquals(1800,NightRoutine.nextMorning(1440));
         assertEquals("03:00",NightRoutine.timeOfDay(1440*20+180));
     }
-    @Test void anUnplannedNightReturnsHomeByRoadThenSleepsUntilMorning() {
+    @Test void nightPreferencesDoNotReplaceObservationWithMovementOrSleep() {
         State s=state(1200,"park");Resident a=s.agents.get("resident");
-        Command home=NightRoutine.resolve(s,a,command(ActionType.LOOK,null));
-        assertEquals(ActionType.MOVE,home.action());assertEquals(a.home,home.target());
+        Command look=command(ActionType.LOOK,null);
+        assertSame(look,NightRoutine.resolve(s,a,look));assertNull(NightRoutine.defaultAction(s,a,"unplanned"));
+        assertNull(a.pending);assertEquals("park",a.location);
+    }
+    @Test void chosenHomewardTravelAndSleepStillExecuteNormally() {
+        State s=state(1200,"park");Resident a=s.agents.get("resident");
+        Command home=command(ActionType.MOVE,a.home);
         Engine.apply(s,a,home,"home",new Engine.Effects());
         assertEquals("road",a.location);assertEquals(s.buildings.get("park").x,a.x);assertEquals(s.buildings.get("park").z,a.z);
         assertNull(NightRoutine.defaultAction(s,a,"pending"));
         for(int i=0;i<400&&a.pending!=null;i++) Engine.tick(s);
         assertEquals(a.home,a.location);
         Engine.Effects effects=new Engine.Effects();
-        Engine.apply(s,a,NightRoutine.defaultAction(s,a,"sleep"),"sleep",effects);
+        Engine.apply(s,a,command(ActionType.SLEEP,null),"sleep",effects);
         assertEquals("SLEEP",a.pending.type);assertEquals(1800,a.pending.until);
         assertTrue(effects.facts.stream().anyMatch(f->f.message().contains("went to sleep")));
         while(s.minute<1799) Engine.tick(s);
@@ -38,10 +43,9 @@ class NightRoutineTest {
         assertTrue(morning.facts.stream().anyMatch(f->f.message().contains("woke up")));
         assertNull(NightRoutine.defaultAction(s,a,"day"));
     }
-    @Test void explicitRestAndActivitiesRemainChoicesWhileTiredIdleResidentsReturnHome() {
+    @Test void everyChosenActionRemainsUnchangedAtNightIncludingObservation() {
         State s=state(1200,"park");Resident a=s.agents.get("resident");
-        assertEquals(ActionType.MOVE,NightRoutine.resolve(s,a,command(ActionType.LOOK,null)).action());
-        for(ActionType action:new ActionType[]{ActionType.REST,ActionType.SLEEP,ActionType.USE_OBJECT,ActionType.WORK,ActionType.TALK,ActionType.BUY,ActionType.EAT,ActionType.MOVE}) {
+        for(ActionType action:new ActionType[]{ActionType.LOOK,ActionType.REST,ActionType.SLEEP,ActionType.USE_OBJECT,ActionType.WORK,ActionType.TALK,ActionType.BUY,ActionType.EAT,ActionType.MOVE}) {
             Command plan=command(action,"office");assertSame(plan,NightRoutine.resolve(s,a,plan));
         }
     }
@@ -51,7 +55,7 @@ class NightRoutineTest {
         Command look=command(ActionType.LOOK,null);assertSame(look,NightRoutine.resolve(s,a,look));
         assertNull(NightRoutine.defaultAction(s,a,"fallback"));
         s.minute=1259;Engine.tick(s);assertNull(a.nightPlan);
-        assertEquals(ActionType.MOVE,NightRoutine.defaultAction(s,a,"expired").action());
+        assertNull(NightRoutine.defaultAction(s,a,"expired"));assertNull(a.pending);assertEquals("park",a.location);
     }
     @Test void daytimeAndPausedResidentsKeepTheirDecisions() {
         State s=state(720,"park");Resident a=s.agents.get("resident");

@@ -1,0 +1,19 @@
+# Lightning and thunder
+
+Deployed on **15 October 2026** to the saved main city at <http://localhost:3000>. Only the frontend was replaced; the running API and database containers were preserved. The saved world was backed up and 30 resident identities, 174 places, two owners, agent credentials and provider connections were verified unchanged. See the [deployment record](../artifacts/world-storm-20261015/deployment/deployment.json) for image, backup and rollback details.
+
+The rainy world now has occasional distant lightning: a branching bolt, a brief cool sky glow and soft environmental illumination. A matching rolling thunder sound follows the strike, with delay, loudness and stereo direction based on the viewer's position. It uses the existing **Sound off / Sound on** and volume controls in first-person exploration. The dashboard receives visual weather effects and remains silent.
+
+Storms use received world clock intervals and the server's `Rain` weather. One deterministic strike is placed in each eight-world-minute window, at an irregular offset. Under the normal five-second tick this produces a strike about every 25–55 real seconds. Faster world clocks still leave at least twelve real seconds between visible events. Initial entry, tab return, weather transitions and reconnects discard past strikes. A disconnected clock cannot generate new strikes; an existing flash still fades out in real time.
+
+Lightning has one short pulse, a faint cool glow and elevated branching geometry. It does not simulate damage or strikes against buildings or residents. Reduced-motion mode suppresses bolts, sky flashes and added illumination while preserving optional thunder audio. Thunder is a quiet synthesized crack and a low rolling tail, with a bounded 1–9 second delay. The delay uses the island's existing ten-metres-per-map-unit scale and is capped for the intended sound design. Muting, tab suspension, leaving exploration or clearing weather stops both queued and active thunder; enabling audio never replays an older strike.
+
+The frontend adds two small lightning line draws and one temporary light. Each storm observation is published before sky lighting and audio update, so the bolt and sky glow share the same frame. The bolt reuses a fixed GPU buffer. Noise buffers are reused from the existing audio engine, with at most two thunder voices and native audio scheduling. No downloads, dependencies, API changes, world-state migrations or resident changes are required.
+
+## Checks
+
+`web/tests/storm.spec.ts` checks deterministic placement, cadence and bounds, a single flash pulse, distance and direction, disconnected clocks, missing snapshots, weather changes, tab interruption, desktop pixel changes, actual delayed audio samples, mobile reduced motion and cancellation on mute/clear/exit. Existing sound, map-rain and sky checks cover regressions.
+
+All **23 distinct frontend checks pass against the final deployed build**, including the accelerated-clock spacing check, along with TypeScript and the Docker production build. Final evidence is under `web/test-results-storm-deployed-final/`; the lightning capture and live desktop/mobile screenshots were reviewed. The deployed desktop/mobile storm checks use an isolated browser-only rainy snapshot; the saved server weather is preserved. Live-world checks use the actual world and reject mutating browser requests. Those checks also passed, with a working WebSocket, generated audio, mute/resume, context cleanup and reduced motion; no page errors or mutating requests occurred. The deployment record links the preserved backup and the original pre-storm rollback image.
+
+Thunder is scheduled with the browser's [buffer-source start API](https://developer.mozilla.org/en-US/docs/Web/API/AudioBufferSourceNode/start) and cancelled through the [scheduled-source stop API](https://developer.mozilla.org/en-US/docs/Web/API/AudioScheduledSourceNode/stop).

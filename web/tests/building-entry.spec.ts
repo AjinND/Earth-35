@@ -12,6 +12,9 @@ test("indoor occupants keep their profile and visitor count without a floating d
   await page.route("**/api/config",r=>r.fulfill({json:{webSocketUrl:"ws://localhost:3000/ws/entry-test"}}));
   await page.routeWebSocket("**/ws/entry-test",r=>{socket=r;r.send(JSON.stringify(world));});
   await page.goto("/agents");await page.locator(".resident-card").click();
+  // Selecting a resident loads the 3D map asynchronously. Start the entry
+  // assertions only once that scene has mounted, as the map tests do.
+  await expect(page.locator(".world-stage canvas[data-city-buildings]")).toBeVisible({timeout:30000});
   await expect(page.locator(".world-stage [data-avatar-motion]")).toHaveText("Doorway visitor");
   await expect.poll(()=>!!socket).toBe(true);
   world={...world,version:world.version+1,agents:[{...world.agents[0],location:coffee.id,x:coffee.x,z:coffee.z,activity:"Idle"}]};

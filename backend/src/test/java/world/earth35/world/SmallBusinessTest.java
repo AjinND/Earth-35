@@ -13,6 +13,7 @@ class SmallBusinessTest {
         host.openMinute=480;host.closeMinute=1200;s.buildings.put(host.id,host);
         for(String id:List.of("owner","buyer","worker")) {
             State.Resident a=new State.Resident();a.id=id;a.name=id;a.home="apt-101";a.location=host.id;
+            var station=Workspaces.stations(host).get(s.agents.size());a.x=station.x();a.z=station.z();
             s.agents.put(id,a);
         }
         return s;
@@ -78,8 +79,10 @@ class SmallBusinessTest {
         apply(s,"worker",ActionType.ACCEPT_JOB,b.jobId,null,null,null,"accept");
         long salary=s.agents.get("worker").money;
         apply(s,"worker",ActionType.WORK,null,null,null,null,"work");minutes(s,60);
-        assertEquals(salary+1000,s.agents.get("worker").money);assertEquals(9000L,s.accounts.get(b.id));
+        assertEquals(salary,s.agents.get("worker").money);assertEquals(9000L,s.accounts.get(b.id));
         apply(s,"owner",ActionType.PRODUCE_PRODUCT,b.id,null,1,null,"prepare");minutes(s,30);assertEquals(1,b.stock);
+        while(s.minute<s.jobs.get(b.jobId).endMinute)Engine.tick(s);
+        assertEquals(salary+1000,s.agents.get("worker").money);
         s.minute=1800;s.accounts.put(b.id,0L);Economy.settle(s,new Engine.Effects());assertEquals(0L,s.accounts.get(b.id));assertEquals(1,b.stock);
     }
     @Test void shopOwnershipProductsAndIncomeStateSurviveRestoreWithoutAutomaticStock() throws Exception {

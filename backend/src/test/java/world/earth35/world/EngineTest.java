@@ -90,6 +90,8 @@ class EngineTest {
         Engine.apply(s,a,cmd(ActionType.WORK,null),"work",new Engine.Effects());
         assertEquals(employer-2000,s.accounts.get("office"));assertEquals(money,a.money);
         for(int i=0;i<120;i++) Engine.tick(s);
+        assertEquals(money,a.money);
+        while(s.minute<1020)Engine.tick(s);
         assertEquals(money+2000,a.money);assertFalse(s.accounts.containsKey("escrow:work"));
     }
     @Test void tradeConservesMoneyAndInventory() {

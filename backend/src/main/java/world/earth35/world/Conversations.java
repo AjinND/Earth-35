@@ -7,7 +7,8 @@ public final class Conversations {
     private Conversations() {}
     public static String key(String a,String b) {return a.compareTo(b)<0?a+":"+b:b+":"+a;}
     public static void speak(State s,Resident speaker,Resident listener,String message) {
-        Engine.require(!listener.paused&&!Engine.busy(listener),"This resident is unavailable for conversation; choose another activity");
+        Engine.require(Social.conversationAvailable(listener),"This resident is unavailable for conversation; choose another activity");
+        ConversationGrounding.validate(s,speaker,message);
         String key=key(speaker.id,listener.id);Conversation c=s.conversations.get(key);
         Engine.require(c==null||closed(s,c)||!speaker.id.equals(c.lastSpeaker),"Waiting for "+listener.name+" to reply. No reply has been received; end this chat or choose another activity");
         String normalized=normalize(message);
@@ -22,6 +23,15 @@ public final class Conversations {
         }
         c.turnSequence++;c.closed=false;c.closingSpeaker=null;c.lastSpeaker=speaker.id;c.lastMinute=s.minute;c.turns.add(new Turn(speaker.id,message,s.minute,speaker.location));
         while(c.turns.size()>12)c.turns.removeFirst();
+        Relationships.record(s,"turn:"+key+":"+c.turnSequence,"conversation",speaker.id,listener.id,speaker.name+" said: "+message);
+        speaker.encounterReviewed.put(listener.id,s.minute);
+        speaker.encounterReviewed.put("turn:"+key,c.turnSequence);
+        if(c.engaged) {
+            listener.facingHeading=Math.atan2(speaker.x-listener.x,speaker.z-listener.z);listener.facingUntil=s.minute+2;
+            listener.recentPerformance=new ActionPerformance.View("conversation:"+key,"CHAT","perform",Seating.seated(listener)||Workspaces.seated(listener)?"seated":"standing","listen",null,"Listening to "+speaker.name,listener.facingHeading,!Travel.moving(listener),0);
+            listener.performanceUntil=s.minute+1;
+        }
+        Social.interrupted(s,speaker,listener,true);
     }
     // status controls turn-taking, not whether the social interaction has ended.
     public record View(String other,String status,String lastSpeaker,long lastMinute,List<Turn> turns,List<ConversationTravel> travel) {}
@@ -76,6 +86,7 @@ public final class Conversations {
             .filter(c->target.isEmpty()?!closed(s,c):target.equals(a.id.equals(c.a)?c.b:c.a)).toList();
         Engine.require(target.isEmpty()||!chats.isEmpty(),"Choose a resident you have spoken to before closing the chat");
         Engine.require(chats.isEmpty()||Engine.present(message),"Say a brief farewell with END_CHAT message before ending the conversation");
+        if(!chats.isEmpty())ConversationGrounding.validate(s,a,message);
         // Validate every recipient before changing any thread or releasing a journey.
         for(Conversation c:chats) {
             Engine.together(a,s.agents.get(a.id.equals(c.a)?c.b:c.a));
@@ -91,6 +102,7 @@ public final class Conversations {
             c.turns.add(new Turn(a.id,message.strip(),s.minute,a.location));
             while(c.turns.size()>12)c.turns.removeFirst();
             c.closed=true;
+            Relationships.record(s,"turn:"+key(c.a,c.b)+":"+c.turnSequence,"farewell",a.id,other.id,a.name+" said: "+message.strip());
             e.facts.add(new Engine.Fact("conversation",a.id,other.id,a.name+" to "+other.name+": "+message.strip()));
         }
     }
@@ -104,7 +116,7 @@ public final class Conversations {
     public static List<View> views(State s,Resident a,Map<String,Boolean> availability) {
         return s.conversations.values().stream().filter(c->a.id.equals(c.a)||a.id.equals(c.b)).map(c->{
             String other=a.id.equals(c.a)?c.b:c.a;
-            String status=status(s,a,c,availability.getOrDefault(other,true));
+            String status=status(s,a,c,availability.getOrDefault(other,true)&&Social.conversationAvailable(s.agents.get(other)));
             return new View(other,status,c.lastSpeaker,c.lastMinute,List.copyOf(c.turns),List.copyOf(c.travel));
         }).toList();
     }

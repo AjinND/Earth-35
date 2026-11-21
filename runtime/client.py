@@ -50,5 +50,8 @@ class Earth35:
     def remember(self, **memory):
         return self.call("POST", "/agent/memories", {"requestId": str(uuid.uuid4()), **memory})
 
+    def review_intention(self, **update):
+        return self.call("PUT", "/agent/cognition", update)
+
     def close(self):
         self.http.close()

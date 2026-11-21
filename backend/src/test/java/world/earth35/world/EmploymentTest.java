@@ -50,12 +50,13 @@ class EmploymentTest {
         State s=State.seed();s.minute=600;Resident a=employee(s);long money=a.money,employer=s.accounts.get("office");
         act(s,a,ActionType.WORK,null,"shift");for(int i=0;i<15;i++)Engine.tick(s);
         Engine.Effects quit=act(s,a,ActionType.QUIT_JOB,"job-office","quit");
-        assertEquals(money+500,a.money);assertEquals(employer-500,s.accounts.get("office"));
+        assertEquals(money,a.money);assertEquals(employer-500,s.accounts.get("office"));
+        assertEquals(500,WorkPayroll.view(a).getFirst().earnedCents());
         assertFalse(s.accounts.containsKey("escrow:shift"));assertEquals(15,a.workedMinutes);assertEquals(0,a.overtimeMinutes);
         assertNull(a.pending);assertEquals(1,quit.completions.size());assertEquals("shift",quit.completions.getFirst().id());
         assertEquals("cancelled",quit.completions.getFirst().status());
         assertEquals(1500,quit.payments.stream().filter(p->p.reason().equals("unused_wage_reservation")).findFirst().orElseThrow().amount());
-        for(int i=0;i<60;i++)Engine.tick(s);
+        while(s.minute<1020)Engine.tick(s);
         assertEquals(money+500,a.money);assertEquals(employer-500,s.accounts.get("office"));
     }
 
@@ -67,10 +68,10 @@ class EmploymentTest {
         for(int i=0;i<20;i++)Engine.tick(s);
         ObjectMapper json=new ObjectMapper();State restored=json.readValue(json.writeValueAsString(s),State.class);
         Resident saved=restored.agents.get(a.id);act(restored,saved,ActionType.QUIT_JOB,null,"quit");
-        assertEquals(money+1000,saved.money);assertEquals(employer-1000,restored.accounts.get(job.employerAccount));
+        assertEquals(money,saved.money);assertEquals(employer-1000,restored.accounts.get(job.employerAccount));
         assertEquals(20,saved.workedMinutes);assertEquals(20,saved.overtimeMinutes);assertNull(saved.pending);
         State settled=json.readValue(json.writeValueAsString(restored),State.class);
-        while(settled.minute<550)Engine.tick(settled);
+        while(settled.minute<1020)Engine.tick(settled);
         assertEquals(money+1000,settled.agents.get(a.id).money);assertFalse(settled.accounts.containsKey("escrow:extra"));
     }
 
@@ -80,7 +81,9 @@ class EmploymentTest {
             Engine.apply(s,a,new Command("mixed",ActionType.WORK,null,null,"overtime",null,null),"mixed",new Engine.Effects());
             for(int i=0;i<elapsed;i++)Engine.tick(s);
             act(s,a,ActionType.QUIT_JOB,null,"quit");
-            assertEquals(money+(elapsed==15?500:1750),a.money);
+            assertEquals(money,a.money);
+            assertEquals(elapsed==15?500:1750,WorkPayroll.view(a).getFirst().earnedCents());
+            assertEquals(elapsed==15?1020:1440,WorkPayroll.view(a).getFirst().payAtMinute());
             assertEquals(elapsed,a.workedMinutes);assertEquals(elapsed==15?0:15,a.overtimeMinutes);
         }
     }

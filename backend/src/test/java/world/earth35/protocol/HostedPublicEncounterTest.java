@@ -15,14 +15,14 @@ class HostedPublicEncounterTest {
         PublicCall call=new PublicCall();call.id="call";call.caller="caller";call.listener=a.id;call.message="Hey!";
         call.minute=s.minute;call.expires=s.minute+10;s.publicCalls.put(call.id,call);return call;
     }
-    @Test void heardCallsWakeRestingAndWaitingResidentsWithoutInterruptingBusyActivities() {
+    @Test void heardCallsOfferAwakeWorkersAChoiceWithoutChangingTheirTask() {
         State s=State.prototypeSeed();Resident a=new Resident();a.id="listener";s.agents.put(a.id,a);call(s,a);
-        for(String activity:List.of("REST","WAIT_RAIN","WAIT_BUS","MOVE","RUN")) {
+        for(String activity:List.of("REST","WAIT_RAIN","WAIT_BUS","MOVE","RUN","WORK","READ_BOOK","RESEARCH_PROJECT","BUILD_PROJECT","BUILD_CONSTRUCTION","PRODUCE_PRODUCT","DO_ACTIVITY")) {
             a.pending=new Pending();a.pending.id="unchanged";a.pending.type=activity;
             assertTrue(HostedAgentService.decisionDue(observation(s,a)),activity);
             assertEquals("unchanged",a.pending.id);assertNull(a.pending.socialWith);
         }
-        for(String activity:List.of("WORK","SLEEP","READ_BOOK","BOARD_BUS","RIDE_BUS")) {
+        for(String activity:List.of("SLEEP","BOARD_BUS","RIDE_BUS")) {
             a.pending.type=activity;assertFalse(HostedAgentService.decisionDue(observation(s,a)),activity);
         }
     }

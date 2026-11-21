@@ -18,29 +18,53 @@ public final class Employment {
         return "You left your job as "+job.title+"."+settlement+" Your former position is available; you may choose your next livelihood";
     }
 
-    private static String stopShift(State s,Resident a,Job job,Engine.Effects effects) {
+    public static String stopWork(State s,Resident a,Engine.Effects effects,String reason) {
+        Job job=s.jobs.get(a.job);
+        if(job==null) {
+            Pending p=a.pending;int duration=WorkPayroll.duration(p),elapsed=Math.min(duration,p.workMinutes),overtime=Math.max(0,elapsed-p.regularWorkMinutes);
+            String escrow="escrow:"+p.id;long reserved=s.accounts.getOrDefault(escrow,0L);
+            long earned=Math.min(reserved,p.workHourlyWage>0?(p.workHourlyWage*p.regularWorkMinutes+p.workOvertimeHourlyWage*overtime)/60:reserved*elapsed/duration);
+            if(a.workPayroll==null)a.workPayroll=new java.util.LinkedHashMap<>();
+            WorkPayroll.Workday sheet=a.workPayroll.get(p.payrollId);
+            if(sheet==null) {
+                sheet=new WorkPayroll.Workday();sheet.id="payroll:"+a.id+":"+p.id;sheet.job=a.job;sheet.building=p.target;
+                sheet.employer=p.workEmployer==null?p.target:p.workEmployer;sheet.payAtMinute=Math.max(s.minute,p.until);sheet.scheduledEndMinute=sheet.payAtMinute;
+                p.payrollId=sheet.id;a.workPayroll.put(sheet.id,sheet);
+            }
+            WorkPayroll.accrue(s,a,null,elapsed,overtime,earned,effects);
+            if(reserved>earned)Engine.pay(s,escrow,sheet.employer,reserved-earned,"unused_wage_reservation",effects);
+            s.accounts.remove(escrow);a.workedMinutes=Math.max(0,a.workedMinutes-duration+elapsed);a.overtimeMinutes=Math.max(0,a.overtimeMinutes-p.overtimeMinutes+overtime);
+            effects.completions.add(new Engine.Completion(p.id,"cancelled",reason+"; earned pay retained despite missing job"));a.pending=null;
+            WorkPayroll.settle(s,a,effects);return "Work stopped; earned pay retained";
+        }
+        return stopShift(s,a,job,effects,reason);
+    }
+    private static String stopShift(State s,Resident a,Job job,Engine.Effects effects) {return stopShift(s,a,job,effects,"Resident quit their job");}
+    private static String stopShift(State s,Resident a,Job job,Engine.Effects effects,String reason) {
         Pending shift=a.pending;
-        // WORK reserves one full hour. Infer its start for worlds saved before startedAt was recorded.
-        long start=shift.until-60;
-        int elapsed=(int)Math.max(0,Math.min(60,s.minute-start));
-        int regularBefore=Math.max(0,a.workedMinutes-a.overtimeMinutes-(60-shift.overtimeMinutes));
+        // Legacy WORK reserved sixty minutes; new final regular blocks can be shorter.
+        int duration=WorkPayroll.duration(shift);long start=shift.until-duration;
+        int elapsed=shift.trackedWork?shift.workMinutes:(int)Math.max(0,Math.min(duration,s.minute-start));
+        int regularBefore=Math.max(0,a.workedMinutes-a.overtimeMinutes-(duration-shift.overtimeMinutes));
         int remaining=Math.max(0,job.endMinute-job.startMinute-regularBefore),regular=0;
         for(int i=0;i<elapsed;i++) {
             long minute=start+i;
             int time=Math.floorMod(minute,1440),day=(int)Math.floorMod(Math.floorDiv(minute,1440),7);
             if(job.workDays.contains(day)&&time>=job.startMinute&&time<job.endMinute&&regular<remaining)regular++;
         }
+        if(shift.trackedWork)regular=shift.regularWorkMinutes;
         int overtime=elapsed-regular;
         String escrow="escrow:"+shift.id;
         long reserved=s.accounts.getOrDefault(escrow,0L);
         long earned=Math.min(reserved,(job.hourlyWage*regular+DailyRoutines.overtimeHourlyWage(job)*overtime)/60);
-        if(earned>0)Engine.pay(s,escrow,a.id,earned,overtime>0?"overtime_wage":"wage",effects);
+        WorkPayroll.accrue(s,a,job,elapsed,overtime,earned,effects);
         if(reserved>earned)Engine.pay(s,escrow,Economy.employer(job),reserved-earned,"unused_wage_reservation",effects);
         s.accounts.remove(escrow);
-        a.workedMinutes=Math.max(0,a.workedMinutes-(60-elapsed));
+        a.workedMinutes=Math.max(0,a.workedMinutes-(duration-elapsed));
         a.overtimeMinutes=Math.max(0,a.overtimeMinutes-(shift.overtimeMinutes-overtime));
-        effects.completions.add(new Engine.Completion(shift.id,"cancelled","Resident quit their job after "+elapsed+" minutes; earned wages of "+earned+" cents settled and unused reservation returned to employer"));
+        effects.completions.add(new Engine.Completion(shift.id,"cancelled",reason+" after "+elapsed+" minutes; earned wages of "+earned+" cents reserved for workday-end payment and unused reservation returned to employer"));
         a.pending=null;
-        return " Your shift ended after "+elapsed+" minutes and paid "+earned+" cents for the time worked.";
+        WorkPayroll.settle(s,a,effects);
+        return " Your work stopped after "+elapsed+" minutes; "+earned+" cents earned will be paid at the workday's payment time.";
     }
 }

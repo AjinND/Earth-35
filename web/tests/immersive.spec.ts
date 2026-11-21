@@ -64,7 +64,8 @@ test("first-person walking, map travel, single-agent follow and exit",async({pag
   await page.keyboard.press('Escape');await expect(dialog).toHaveCount(0);
   await expect(page.getByRole('heading',{name:'Life, unfolding.'})).toBeVisible();
   await page.setViewportSize({width:390,height:844});await page.getByRole('button',{name:'Enter the world'}).click();await expect(dialog).toBeVisible();
-  await expect(canvas).toHaveAttribute('data-controls-ready','true');
+  // Reopening on mobile creates a new scene, just like the first desktop entry.
+  await expect(canvas).toHaveAttribute('data-controls-ready','true',{timeout:30000});
   await page.getByRole('button',{name:'Zoom in view',exact:true}).click();await checkZoom('120');
   const touch=await page.context().newCDPSession(page);
   await touch.send('Emulation.setTouchEmulationEnabled',{enabled:true,maxTouchPoints:2});

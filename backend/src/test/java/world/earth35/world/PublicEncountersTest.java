@@ -111,7 +111,9 @@ class PublicEncountersTest {
         a.location="road";assertFalse(Social.perceivable(walls,a,b));assertCannotCall(walls,a,b);
         State transit=new State();a=resident(transit,"a",0,0);b=resident(transit,"b",2,0);b.pending=Engine.pending("ride","RIDE_BUS","stop",1000);
         assertFalse(Social.perceivable(transit,a,b));assertCannotCall(transit,a,b);
-        b.pending=Engine.pending("work","WORK","office",1000);assertCannotCall(transit,a,b);
+        b.pending=Engine.pending("work","WORK","office",1000);Pending working=b.pending;
+        act(transit,a,ActionType.CALL_OUT,b.id,"A quick hello while you work","working-call");assertSame(working,b.pending);assertFalse(working.activityPaused);
+        transit.publicCalls.clear();
         b.pending=null;b.paused=true;assertCannotCall(transit,a,b);
     }
     @Test void aWalkingResidentRemainsInsideUntilTheyActuallyCrossTheDoor() {

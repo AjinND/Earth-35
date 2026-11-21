@@ -11,7 +11,10 @@ public final class Traffic {
         public Stop(String id,String name,double x,double z,double roadX,double roadZ) {this(id,name,x,z,roadX,roadZ,0,List.of());}
     }
     public record Route(String id,String name,List<String> stops,int firstDeparture,int lastDeparture,int headway,int capacity,long fareCents) {}
-    public record Pose(double x,double z,double heading) {}
+    public record Pose(double x,double z,double heading,
+                       @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL) Double fraction) {
+        public Pose(double x,double z,double heading) {this(x,z,heading,null);}
+    }
     public record Vehicle(String id,String type,String route,String name,double x,double z,double heading,String stop,int seatsAvailable,List<Pose> motion) {}
     public record Signal(double x,double z,String vehicleGreen,boolean pedestrianGreen) {}
     // Bus-route turning junctions plus the central square and park approach.

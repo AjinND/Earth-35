@@ -14,14 +14,16 @@ public final class PublicEncounters {
         Engine.require(Social.outdoors(s,caller)&&Social.outdoors(s,listener),"Call out only to another resident in public outdoor space");
         Engine.require(Social.perceivable(s,caller,listener)&&Engine.distance(caller.x,caller.z,listener.x,listener.z)<=20,
             "The resident must be within twenty units and hear you in the same unobstructed public space");
-        Engine.require(Social.available(listener),"This resident is unavailable to hear a public call");
+        Engine.require(!listener.paused&&ActionPerformance.awake(listener),"This resident is unavailable to hear a public call");
         Engine.require(Engine.present(message),"Say what you are calling out");
         Engine.require(message.length()<=1000,"Keep the public call within 1000 characters");
         Engine.require(s.publicCalls.values().stream().noneMatch(call->caller.id.equals(call.caller)&&listener.id.equals(call.listener)
             &&s.minute-call.minute<PAIR_COOLDOWN),"Give this resident time to respond or continue on their way before calling again");
+        ConversationGrounding.validate(s,caller,message);
         PublicCall call=new PublicCall();call.id=id;call.caller=caller.id;call.listener=listener.id;
         s.publicCalls.values().removeIf(previous->caller.id.equals(previous.caller)&&listener.id.equals(previous.listener));
         call.message=message.strip();call.minute=s.minute;call.expires=s.minute+CALL_MINUTES;s.publicCalls.put(id,call);
+        Relationships.record(s,"call:"+id,"public_call",caller.id,listener.id,caller.name+" called out: "+call.message);
         e.facts.add(new Engine.Fact("public_call",caller.id,listener.id,caller.name+" called out to "+listener.name+": "+call.message));
         Social.reviewed(s,caller);
     }
@@ -44,6 +46,7 @@ public final class PublicEncounters {
             Engine.require(Social.outdoors(s,listener)&&Social.outdoors(s,caller)&&Social.perceivable(s,listener,caller)
                 &&Engine.distance(listener.x,listener.z,caller.x,caller.z)<=20,"The caller is no longer within sight or hearing; continue on your way or decline silently");
         }
+        ConversationGrounding.validate(s,listener,message);
         call.status=acknowledge?"acknowledged":"declined";
         call.response=Engine.present(message)?message.strip():null;call.responseMinute=s.minute;
         if(acknowledge) {
@@ -53,6 +56,7 @@ public final class PublicEncounters {
             String fact=call.response!=null?listener.name+" to "+caller.name+": "+call.response
                 :listener.name+" turned toward "+caller.name+" and acknowledged the call.";
             e.facts.add(new Engine.Fact("public_call_response",listener.id,callerId,fact));
+            Relationships.record(s,"call:"+call.id+":response","public_call_response",listener.id,callerId,fact);
         }
         listener.encounterReviewed.put("call:"+call.id,s.minute);
     }

@@ -105,10 +105,13 @@ def test_external_protocol_persistence_privacy_and_capacity():
         assert command(alex, "ACCEPT_JOB", "job-office")["status"] == "completed"
         # Movement and provider work advance the accelerated clock. Employment
         # now has opening hours and weekdays, so wait for a real available shift.
-        wait_until(lambda: observe(alex)["workSchedule"]["open"], 80)
+        wait_until(lambda: observe(alex)["workSchedule"]["open"] and
+                   observe(alex)["worldMinute"] % 1440 + 60 <= observe(alex)["workSchedule"]["endMinute"], 80)
         work = command(alex, "WORK")
         assert work["status"] == "accepted", work
         wait_until(lambda: request(alex, "GET", f"/agent/actions/{work['id']}")["status"] == "completed")
+        wait_until(lambda: any(t["reason"] == "wage" for t in
+                              request(owner1, "GET", f"/owner/agents/{alex_id}")["transactions"]), 80)
         wages = [t for t in request(owner1, "GET", f"/owner/agents/{alex_id}")["transactions"] if t["reason"] == "wage"]
         assert len(wages) == 1 and wages[0]["amount"] == 2000
         assert request(owner1, "GET", f"/owner/agents/{alex_id}")["reportedTokens"] == 123

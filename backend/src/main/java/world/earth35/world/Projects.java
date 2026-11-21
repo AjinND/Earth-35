@@ -132,6 +132,7 @@ public final class Projects {
         Invitation invitation=new Invitation();invitation.id=id;invitation.project=p.id;invitation.inviter=a.id;invitation.invited=other.id;invitation.minute=s.minute;
         invitation.message=message.strip()+" Joining permits project research and building. Launching a business would offer equal co-ownership and requires your separate explicit endorsement of costs.";
         s.projectInvitations.put(id,invitation);
+        Relationships.record(s,"project-invite:"+id,"project_invitation",a.id,other.id,a.name+" invited "+other.name+" to collaborate on "+p.title+": "+message.strip());
         e.facts.add(new Engine.Fact("project_invitation",a.id,other.id,a.name+" invited "+other.name+" to collaborate on "+p.title+"; awaiting their decision."));
         return "Project invitation sent: "+id+"; the invited resident must choose whether to accept";
     }
@@ -147,6 +148,8 @@ public final class Projects {
         }
         i.status=accept?"accepted":"declined";
         if(accept){p.members.add(a.id);p.businessEndorsements.clear();}
+        Relationships.record(s,"project-invite:"+id+":"+i.status,"project_"+i.status,a.id,i.inviter,
+            a.name+(accept?" accepted":" declined")+" the invitation to collaborate on "+p.title+".");
         e.facts.add(new Engine.Fact("project_invitation",a.id,i.inviter,a.name+(accept?" accepted":" declined")+" the invitation to "+p.title+(accept?". Business ownership still requires separate consent.":".")));
         return accept?"Joined project; research and building are voluntary, and business launch requires separate endorsement":"Project invitation declined";
     }
